@@ -12,12 +12,12 @@ entry-point = "src"
 [[d1_databases]]
 binding = "DB" # 绑定到env.DB
 name = "shuangse-lottery-db"
-database_id = "your-database-id" # 部署时需要替换为实际的数据库ID
+database_id = "0213ff68-3f2d-43ca-9381-52cab401fc46" # 部署时需要替换为实际的数据库ID
 
 # KV存储配置（用于会话管理）
 [[kv_namespaces]]
 binding = "SESSION_KV" # 绑定到env.SESSION_KV
-id = "your-kv-namespace-id" # 部署时需要替换为实际的KV命名空间ID
+id = "7122188fb5f64bd2841f14898b5f0780" # 部署时需要替换为实际的KV命名空间ID
 preview_id = "your-preview-kv-namespace-id" # 开发环境使用
 
 # 环境变量
@@ -31,8 +31,8 @@ local_port = 8787
 
 # 路由配置
 [route]
-pattern = "your-domain.com/*" # 替换为您的域名
-zone_name = "your-domain.com" # 替换为您的域名
+pattern = "www.emo88.com/*" # 替换为您的域名
+zone_name = "www.emo88.com" # 替换为您的域名
 
 # Cron Triggers配置
 # 每周一、周三、周五的上午10点运行爬取任务
