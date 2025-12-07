@@ -102,7 +102,7 @@ export async function getHistoryNumbers(request) {
 export async function crawlHistoryNumbers(request, env) {
   try {
     // 获取环境变量
-    const currentEnv = env || request.env;
+    const currentEnv = env || request?.env;
     
     // 从中国福彩官网获取数据
     const response = await fetch('https://www.cwl.gov.cn/ygkj/wqkjgg/', {
