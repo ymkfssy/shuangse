@@ -402,14 +402,31 @@ function getAppHTML() {
 
         async function getHistoryNumbers() {
             try {
+                const container = document.getElementById('history-list');
+                // 显示加载状态
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">加载历史数据中...</div>';
+                
                 const response = await fetch('/api/history?limit=20');
                 const result = await response.json();
                 
                 if (response.ok) {
-                    displayHistoryNumbers(result.numbers);
+                    if (result.numbers && result.numbers.length > 0) {
+                        displayHistoryNumbers(result.numbers);
+                    } else {
+                        // 数据为空时的提示
+                        container.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">暂无历史数据</div>';
+                        showMessage('历史数据为空，请尝试更新数据', 'info');
+                    }
+                } else {
+                    // API返回错误
+                    container.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff4d4f;">获取历史数据失败</div>';
+                    showMessage(result.error || '获取历史数据失败', 'error');
                 }
             } catch (error) {
+                const container = document.getElementById('history-list');
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff4d4f;">获取历史数据失败</div>';
                 console.error('获取历史数据失败:', error);
+                showMessage('网络错误或服务器不可用', 'error');
             }
         }
 
@@ -468,7 +485,9 @@ function getAppHTML() {
             }
         }
 
+        // 只在DOM加载完成后调用一次getHistoryNumbers
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM加载完成，初始化历史数据');
             getHistoryNumbers();
         });
     </script>

@@ -152,7 +152,8 @@ export async function getHistoryNumbers(request, env) {
     const limit = parseInt(url.searchParams.get('limit') || '100');
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
-    const db = getDB(request.env);
+    // 使用传递进来的env参数，而不是request.env
+    const db = getDB(env);
     const results = await db.prepare(
       `SELECT * FROM lottery_history 
        ORDER BY issue_number DESC 
@@ -164,6 +165,7 @@ export async function getHistoryNumbers(request, env) {
       numbers: results.results 
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
+    console.error('获取历史号码失败:', error);
     return new Response(JSON.stringify({ error: `获取历史号码失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
@@ -242,443 +244,129 @@ export async function crawlHistoryNumbers(request, env) {
   }
 }
 
-// 尝试官方API接口
+// 尝试官方API接口 - 仅使用idcd.com提供的API
 async function tryOfficialAPI() {
-  const apiUrls = [
-    // 中国福彩官方API（需要验证实际可用性）
-    'https://www.cwl.gov.cn/cwl_admin/kjxx/findKjxx/forIssue?name=ssq&code=01&pageSize=50&pageNo=1',
-    'https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=01&provinceId=0&pageSize=30&pageNo=1',
-    'https://api.apiopen.top/ssqApi?type=lottery'
-  ];
+  const apiUrl = 'https://www.idcd.com/api/welfare-lottery';
   
-  for (const url of apiUrls) {
-    try {
-      console.log(`尝试官方API: ${url}`);
-      
-      const headers = {
-        'User-Agent': getRandomUserAgent(),
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Referer': 'https://www.cwl.gov.cn/',
-        'Origin': 'https://www.cwl.gov.cn'
-      };
-      
-      // 添加随机延迟
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-      
-      const response = await fetch(url, { headers });
-      
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await response.json();
-          
-          // 根据不同的API返回格式解析数据
-          if (url.includes('cwl.gov.cn') && data.result) {
-            return parseCWLData(data.result);
-          } else if (url.includes('sporttery.cn') && data.success) {
-            return parseSportteryData(data.data);
-          } else if (url.includes('apiopen.top') && data.code === 200) {
-            return parseApiOpenData(data.data);
-          }
-        }
-      }
-    } catch (error) {
-      console.log(`官方API ${url} 请求失败:`, error.message);
-    }
-  }
-  
-  return [];
-}
-
-// 尝试第三方数据源
-async function tryThirdPartySources() {
-  const urls = [
-    'https://www.500.com/api/xxx?lottery=ssq&format=json',
-    'https://www.500.com/static/info/kaijiang/xml/ssq/list.xml',
-    'https://datachart.500.com/ssq/history/newinc/history.php',
-    'https://kaijiang.500.com/ssq.shtml',
-    'https://www.zhcw.com/ssq/',
-    'https://www.sniuw.com/open/ssq/'
-  ];
-  
-  for (const url of urls) {
-    try {
-      console.log(`尝试第三方数据源: ${url}`);
-      
-      const headers = {
-        'User-Agent': getRandomUserAgent(),
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Referer': url
-      };
-      
-      // 根据URL类型设置不同的Accept头
-      if (url.includes('format=json')) {
-        headers['Accept'] = 'application/json, text/plain, */*';
-      } else {
-        headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8';
-      }
-      
-      // 添加随机延迟
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-      
-      const response = await fetch(url, { headers });
-      
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        // 如果是JSON格式的API
-        if (url.includes('format=json') && contentType && contentType.includes('application/json')) {
-          const data = await response.json();
-          const results = parse500JsonData(data);
-          if (results.length > 0) {
-            console.log(`从 ${url} 成功解析 ${results.length} 条JSON数据`);
-            return results;
-          }
-        } else {
-          // 处理HTML/XML格式
-          const html = await response.text();
-          
-          // 尝试不同的解析策略
-          let results = parseWithStrategy1(html);
-          if (results.length === 0) {
-            results = parseWithStrategy2(html);
-          }
-          if (results.length === 0) {
-            results = parseWithStrategy3(html);
-          }
-          
-          if (results.length > 0) {
-            console.log(`从 ${url} 成功解析 ${results.length} 条数据`);
-            return results;
-          }
-        }
-      }
-    } catch (error) {
-      console.log(`第三方数据源 ${url} 请求失败:`, error.message);
-    }
-  }
-  
-  return [];
-}
-
-// 解析中国福彩官方数据
-function parseCWLData(data) {
-  const results = [];
-  
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      if (item.code && item.red && item.blue) {
-        const red = item.red.split(',').map(Number).sort((a, b) => a - b);
-        const blue = parseInt(item.blue);
-        const issue = item.code;
-        const date = item.date ? item.date.split(' ')[0] : new Date().toISOString().split('T')[0];
-        
-        if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-          results.push({ issue, red, blue, date });
-        }
-      }
-    }
-  }
-  
-  return results;
-}
-
-// 解析体彩网数据
-function parseSportteryData(data) {
-  const results = [];
-  
-  if (data && Array.isArray(data.list)) {
-    for (const item of data.list) {
-      if (item.lotteryDrawNum && item.lotteryDrawResult) {
-        const numbers = item.lotteryDrawResult.split('+');
-        if (numbers.length === 2) {
-          const red = numbers[0].split(',').map(Number).sort((a, b) => a - b);
-          const blue = parseInt(numbers[1]);
-          const issue = item.lotteryDrawNum;
-          const date = item.lotteryDrawTime ? item.lotteryDrawTime.split(' ')[0] : new Date().toISOString().split('T')[0];
-          
-          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-            results.push({ issue, red, blue, date });
-          }
-        }
-      }
-    }
-  }
-  
-  return results;
-}
-
-// 解析ApiOpen数据
-function parseApiOpenData(data) {
-  const results = [];
-  
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      if (item.expect && item.opencode) {
-        const numbers = item.opencode.split('+');
-        if (numbers.length === 2) {
-          const red = numbers[0].split(',').map(Number).sort((a, b) => a - b);
-          const blue = parseInt(numbers[1]);
-          const issue = item.expect;
-          const date = item.opentime ? item.opentime.split(' ')[0] : new Date().toISOString().split('T')[0];
-          
-          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-            results.push({ issue, red, blue, date });
-          }
-        }
-      }
-    }
-  }
-  
-  return results;
-}
-
-// 解析策略1：标准表格解析
-function parseWithStrategy1(html) {
-  const results = [];
-  const tableRowRegex = /<tr[^>]*>[\s\S]*?<\/tr>/g;
-  const rows = html.match(tableRowRegex) || [];
-  
-  for (const row of rows) {
-    const issueMatch = row.match(/>(\d{7})</);
-    const dateMatch = row.match(/>(\d{4}-\d{2}-\d{2})/);
-    const numbersMatch = row.match(/(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})/);
-    
-    if (issueMatch && dateMatch && numbersMatch) {
-      const issue = issueMatch[1];
-      const date = dateMatch[1];
-      const numbers = numbersMatch.slice(1).map(Number);
-      
-      if (numbers.length === 7) {
-        const red = numbers.slice(0, 6).sort((a, b) => a - b);
-        const blue = numbers[6];
-        
-        if (red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-          results.push({ issue, red, blue, date });
-        }
-      }
-    }
-  }
-  return results;
-}
-
-// 解析策略2：JSON数据解析
-function parseWithStrategy2(html) {
-  const results = [];
-  const jsonMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*({.+?});/);
-  if (jsonMatch) {
-    try {
-      const jsonData = JSON.parse(jsonMatch[1]);
-      // 根据实际的JSON结构解析
-      if (jsonData.data && Array.isArray(jsonData.data)) {
-        for (const item of jsonData.data) {
-          if (item.issue && item.red && item.blue) {
-            results.push({
-              issue: item.issue,
-              red: item.red.split(',').map(Number).sort((a, b) => a - b),
-              blue: parseInt(item.blue),
-              date: item.date || new Date().toISOString().split('T')[0]
-            });
-          }
-        }
-      }
-    } catch (e) {
-      console.log('JSON解析失败:', e.message);
-    }
-  }
-  return results;
-}
-
-// 解析500.com JSON格式API数据
-function parse500JsonData(data) {
-  const results = [];
-  
-  // 根据500.com API可能的返回格式进行解析
-  if (data && typeof data === 'object') {
-    // 格式1: data包含数组
-    if (Array.isArray(data)) {
-      for (const item of data) {
-        if (item.issue && item.red && item.blue) {
-          const red = Array.isArray(item.red) ? item.red : item.red.split(',').map(Number);
-          const blue = parseInt(item.blue);
-          const issue = item.issue.toString();
-          const date = item.date || item.draw_date || new Date().toISOString().split('T')[0];
-          
-          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-            results.push({ 
-              issue, 
-              red: red.sort((a, b) => a - b), 
-              blue, 
-              date 
-            });
-          }
-        }
-      }
-    }
-    // 格式2: data包含data属性（数组）
-    else if (data.data && Array.isArray(data.data)) {
-      for (const item of data.data) {
-        if (item.issue && item.red && item.blue) {
-          const red = Array.isArray(item.red) ? item.red : item.red.split(',').map(Number);
-          const blue = parseInt(item.blue);
-          const issue = item.issue.toString();
-          const date = item.date || item.draw_date || new Date().toISOString().split('T')[0];
-          
-          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-            results.push({ 
-              issue, 
-              red: red.sort((a, b) => a - b), 
-              blue, 
-              date 
-            });
-          }
-        }
-      }
-    }
-    // 格式3: data包含result属性（数组）
-    else if (data.result && Array.isArray(data.result)) {
-      for (const item of data.result) {
-        if (item.code && item.red && item.blue) {
-          const red = Array.isArray(item.red) ? item.red : item.red.split(',').map(Number);
-          const blue = parseInt(item.blue);
-          const issue = item.code.toString();
-          const date = item.date || item.draw_date || new Date().toISOString().split('T')[0];
-          
-          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-            results.push({ 
-              issue, 
-              red: red.sort((a, b) => a - b), 
-              blue, 
-              date 
-            });
-          }
-        }
-      }
-    }
-  }
-  
-  return results;
-}
-
-// 解析策略3：备用正则解析
-function parseWithStrategy3(html) {
-  const results = [];
-  
-  // 尝试匹配各种格式的开奖数据
-  const patterns = [
-    /(\d{7})[^d]*(\d{4}-\d{2}-\d{2})[^<]*(\d{2})[^<]*(\d{2})[^<]*(\d{2})[^<]*(\d{2})[^<]*(\d{2})[^<]*(\d{2})[^<]*(\d{2})/g,
-    /期号[：:\s]*(\d{7})[\s\S]*?开奖日期[：:\s]*(\d{4}-\d{2}-\d{2})[\s\S]*?红球[：:\s]*([^\d]+)?(\d{2})[^d]*(\d{2})[^d]*(\d{2})[^d]*(\d{2})[^d]*(\d{2})[^d]*(\d{2})[\s\S]*?蓝球[：:\s]*(\d{2})/g
-  ];
-  
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(html)) !== null) {
-      const issue = match[1];
-      const date = match[2];
-      const red = [match[3], match[4], match[5], match[6], match[7], match[8]].map(Number).sort((a, b) => a - b);
-      const blue = parseInt(match[9] || match[3]);
-      
-      if (red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-        results.push({ issue, red, blue, date });
-      }
-    }
-    
-    if (results.length > 0) break;
-  }
-  
-  return results;
-}
-
-// 尝试API数据源
-async function tryAPISource() {
   try {
-    // 尝试第三方API
-    const apiUrls = [
-      'https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=01&provinceId=0&pageSize=10&isVerify=1&pageNo=1',
-      'https://www.apiopen.top/ssqApi?type=lottery'
-    ];
+    console.log(`尝试idcd.com API: ${apiUrl}`);
     
-    for (const url of apiUrls) {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': getRandomUserAgent(),
-          'Referer': 'https://www.cwl.gov.cn/'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        // 根据API返回格式解析数据
-        if (data.success && data.data) {
-          return parseAPIData(data.data);
-        }
+    // 获取当前时间戳
+    const timestamp = Math.floor(Date.now() / 1000);
+    
+    // 生成随机nonce（示例值）
+    const nonce = 'v0j38hHHUEqFwoh0Gc8Rbfi737xtIpLL';
+    
+    // API参数
+    const params = {
+      type: 'ssq', // 双色球
+      start_no: '', // 可以根据需要设置
+      end_no: ''    // 可以根据需要设置
+    };
+    
+    // 构建完整URL
+    const urlWithParams = `${apiUrl}?type=${params.type}`;
+    
+    const headers = {
+      'User-Agent': getRandomUserAgent(),
+      'Accept': 'application/json, text/plain, */*',
+      'ClientID': 'df77f2de-2924-4499-adda-1c4cc243625a',
+      'Nonce': nonce,
+      'Timestamp': timestamp.toString(),
+      'Signature': '5b1230f42bad2ffd5ad09890a8ebb47c02d74668be0cf7bb54a0f6a14996117b',
+      'SignatureMethod': 'HmacSHA256'
+    };
+    
+    // 添加随机延迟
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    
+    const response = await fetch(urlWithParams, { headers });
+    
+    if (!response.ok) {
+      console.log(`idcd.com API 返回错误状态: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.log(`idcd.com API 返回非JSON数据: ${contentType}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    // 解析idcd.com API返回的格式
+    if (data.status === true && Array.isArray(data.data)) {
+      const results = parseIdcdData(data.data);
+      if (results.length > 0) {
+        console.log(`从idcd.com API 成功解析 ${results.length} 条数据`);
+        return results;
       }
+    } else {
+      console.log(`idcd.com API 返回格式不符合预期:`, JSON.stringify(data).substring(0, 200) + '...');
     }
   } catch (error) {
-    console.log('API数据源获取失败:', error.message);
+    console.error(`idcd.com API 请求失败:`, error);
+    console.error(`错误堆栈:`, error.stack);
   }
+  
   return [];
 }
 
-// 解析官方API返回的数据
-function parseOfficialAPI(data) {
-  const results = [];
-  
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      if (item.code && item.red && item.blue) {
-        const red = item.red.split(',').map(Number).sort((a, b) => a - b);
-        const blue = parseInt(item.blue);
-        const issue = item.code;
-        const date = item.date ? item.date.split(' ')[0] : new Date().toISOString().split('T')[0];
-        
-        if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-          results.push({ issue, red, blue, date });
-        }
-      }
-    }
-  }
-  
-  return results;
+// 尝试第三方数据源 - 仅使用idcd.com API，不再使用其他第三方数据源
+async function tryThirdPartySources() {
+  // 不再使用其他第三方数据源，只返回空数组
+  console.log('已禁用所有第三方数据源，仅使用idcd.com API');
+  return [];
 }
 
-// 解析第三方API返回的数据
-function parseAPIData(data) {
+// 解析idcd.com API返回的格式
+function parseIdcdData(data) {
   const results = [];
   
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      if (item.lotteryDrawNum && item.lotteryDrawResult) {
-        const numbers = item.lotteryDrawResult.split('+');
-        if (numbers.length === 2) {
-          const red = numbers[0].split(',').map(Number);
-          const blue = parseInt(numbers[1]);
-          const issue = item.lotteryDrawNum;
-          const date = item.lotteryDrawTime ? item.lotteryDrawTime.split(' ')[0] : new Date().toISOString().split('T')[0];
+  for (const item of data) {
+    if (item.no && item.number && item.date) {
+      try {
+        // 解析开奖号码：前6个是红球，第7个是蓝球
+        const numbers = item.number.split(',').map(Number);
+        
+        if (numbers.length === 7) {
+          const red = numbers.slice(0, 6).sort((a, b) => a - b);
+          const blue = numbers[6];
+          const issue = item.no;
+          // 处理日期格式，只保留年月日部分
+          const date = item.date.split(' ')[0];
           
-          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+          // 验证号码范围
+          if (red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
             results.push({ issue, red, blue, date });
           }
         }
+      } catch (e) {
+        console.log(`解析idcd.com数据项失败: ${JSON.stringify(item)}`, e.message);
       }
     }
   }
   
   return results;
 }
+      
+
+
+// 不再使用的第三方API解析函数已删除
 
 // 生成模拟测试数据
 function generateMockData() {
   const results = [];
   const today = new Date();
   
-  for (let i = 0; i < 10; i++) {
+  // 生成60条模拟数据（约1年的数据量）
+  for (let i = 0; i < 60; i++) {
     const date = new Date(today);
     date.setDate(date.getDate() - i * 3); // 每3天一期的模拟数据
     
     const issueDate = date.toISOString().slice(2, 10).replace(/-/g, '');
-    const issue = `2023${issueDate}`;
+    const issue = `202${3 + Math.floor(i/50)}${issueDate}`;
     
     const red = [];
     while (red.length < 6) {
