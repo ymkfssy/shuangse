@@ -400,13 +400,22 @@ function generateMockData() {
   const results = [];
   const today = new Date();
   
+  // 生成正确格式的模拟数据（期号格式：YYYYNNN，如2025141）
+  // 假设最新期号是2025141，开始生成
+  let currentIssue = 2025141;
+  
   // 生成60条模拟数据（约1年的数据量）
   for (let i = 0; i < 60; i++) {
     const date = new Date(today);
     date.setDate(date.getDate() - i * 3); // 每3天一期的模拟数据
     
-    const issueDate = date.toISOString().slice(2, 10).replace(/-/g, '');
-    const issue = `202${3 + Math.floor(i/50)}${issueDate}`;
+    // 确保期号是7位数字
+    const issue = currentIssue.toString();
+    if (issue.length !== 7) {
+      console.log(`跳过不合法期号: ${issue}`);
+      currentIssue--;
+      continue;
+    }
     
     const red = [];
     while (red.length < 6) {
@@ -423,6 +432,8 @@ function generateMockData() {
       blue,
       date: date.toISOString().split('T')[0]
     });
+    
+    currentIssue--;
   }
   
   return results;
