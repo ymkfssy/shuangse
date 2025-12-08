@@ -70,7 +70,7 @@ export async function generateNewNumber(request, env) {
     while (exists && attempts < maxAttempts) {
       redNumbers = generateRedNumbers();
       blueNumber = generateBlueNumber();
-      exists = await isNumberExists(request.env, redNumbers, blueNumber);
+      exists = await isNumberExists(env, redNumbers, blueNumber);
       attempts++;
     }
 
@@ -81,7 +81,7 @@ export async function generateNewNumber(request, env) {
     // 保存到用户生成的号码表
     const [red1, red2, red3, red4, red5, red6] = redNumbers;
     try {
-      const db = getDB(request.env);
+      const db = getDB(env);
       await db.prepare(
         `INSERT INTO user_numbers (user_id, red_1, red_2, red_3, red_4, red_5, red_6, blue) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
