@@ -2,18 +2,7 @@ import { getDB } from './database.js';
 import { getUserFromSession } from './auth.js';
 
 // 随机User-Agent列表，避免被反爬虫机制识别
-function getRandomUserAgent() {
-  const userAgents = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  ];
-  return userAgents[Math.floor(Math.random() * userAgents.length)];
-}
+
 
 // 生成6个不重复的红球号码（1-33）
 function generateRedNumbers() {
@@ -244,111 +233,97 @@ export async function crawlHistoryNumbers(request, env) {
   }
 }
 
-// 尝试官方API接口 - 仅使用idcd.com提供的API
+// 尝试从6.17500.cn爬取数据
 async function tryOfficialAPI() {
-  const apiUrl = 'https://www.idcd.com/api/welfare-lottery';
+  const apiUrl = 'https://6.17500.cn/?lottery=more&lotteryId=ssq';
   
   try {
-    console.log(`尝试idcd.com API: ${apiUrl}`);
-    
-    // 获取当前时间戳
-    const timestamp = Math.floor(Date.now() / 1000);
-    
-    // 生成随机nonce（示例值）
-    const nonce = 'v0j38hHHUEqFwoh0Gc8Rbfi737xtIpLL';
-    
-    // API参数
-    const params = {
-      type: 'ssq', // 双色球
-      start_no: '', // 可以根据需要设置
-      end_no: ''    // 可以根据需要设置
-    };
-    
-    // 构建完整URL
-    const urlWithParams = `${apiUrl}?type=${params.type}`;
+    console.log(`尝试从6.17500.cn爬取数据: ${apiUrl}`);
     
     const headers = {
-      'User-Agent': getRandomUserAgent(),
-      'Accept': 'application/json, text/plain, */*',
-      'ClientID': 'df77f2de-2924-4499-adda-1c4cc243625a',
-      'Nonce': nonce,
-      'Timestamp': timestamp.toString(),
-      'Signature': '5b1230f42bad2ffd5ad09890a8ebb47c02d74668be0cf7bb54a0f6a14996117b',
-      'SignatureMethod': 'HmacSHA256'
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Referer': 'https://6.17500.cn/',
+      'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3'
     };
     
     // 添加随机延迟
     await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
     
-    const response = await fetch(urlWithParams, { headers });
+    const response = await fetch(apiUrl, { headers });
     
     if (!response.ok) {
-      console.log(`idcd.com API 返回错误状态: ${response.status} ${response.statusText}`);
+      console.log(`6.17500.cn 返回错误状态: ${response.status} ${response.statusText}`);
       return [];
     }
     
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      console.log(`idcd.com API 返回非JSON数据: ${contentType}`);
-      return [];
-    }
+    const html = await response.text();
     
-    const data = await response.json();
-    
-    // 解析idcd.com API返回的格式
-    if (data.status === true && Array.isArray(data.data)) {
-      const results = parseIdcdData(data.data);
-      if (results.length > 0) {
-        console.log(`从idcd.com API 成功解析 ${results.length} 条数据`);
-        return results;
-      }
+    // 解析HTML数据
+    const results = parse17500HTML(html);
+    if (results.length > 0) {
+      console.log(`从6.17500.cn成功解析 ${results.length} 条数据`);
+      return results;
     } else {
-      console.log(`idcd.com API 返回格式不符合预期:`, JSON.stringify(data).substring(0, 200) + '...');
+      console.log(`从6.17500.cn解析数据为空`);
     }
   } catch (error) {
-    console.error(`idcd.com API 请求失败:`, error);
+    console.error(`6.17500.cn 请求失败:`, error);
     console.error(`错误堆栈:`, error.stack);
   }
   
   return [];
 }
 
-// 尝试第三方数据源 - 仅使用idcd.com API，不再使用其他第三方数据源
+// 尝试第三方数据源 - 保留作为备份
 async function tryThirdPartySources() {
-  // 不再使用其他第三方数据源，只返回空数组
-  console.log('已禁用所有第三方数据源，仅使用idcd.com API');
+  // 暂时返回空数组，如果6.17500.cn失败可以考虑添加其他数据源
+  console.log('已禁用所有第三方数据源');
   return [];
 }
 
-// 解析idcd.com API返回的格式
-function parseIdcdData(data) {
+// 解析6.17500.cn网站的HTML内容
+function parse17500HTML(html) {
   const results = [];
   
-  for (const item of data) {
-    if (item.no && item.number && item.date) {
-      try {
-        // 解析开奖号码：前6个是红球，第7个是蓝球
-        const numbers = item.number.split(',').map(Number);
+  // 匹配开奖记录的正则表达式
+  // 格式：日期  第 期号 期  号码1 号码2 号码3 号码4 号码5 号码6 号码7
+  const pattern = /(\d{4}-\d{2}-\d{2})\s+第\s*(\d{7})\s*期\s+([\d\s]+)/g;
+  
+  let match;
+  while ((match = pattern.exec(html)) !== null) {
+    try {
+      const date = match[1];
+      const issue = match[2];
+      const numbersStr = match[3];
+      
+      // 提取所有数字并转换为数组
+      const numbers = numbersStr.trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
+      
+      if (numbers.length === 7) {
+        const red = numbers.slice(0, 6).sort((a, b) => a - b);
+        const blue = numbers[6];
         
-        if (numbers.length === 7) {
-          const red = numbers.slice(0, 6).sort((a, b) => a - b);
-          const blue = numbers[6];
-          const issue = item.no;
-          // 处理日期格式，只保留年月日部分
-          const date = item.date.split(' ')[0];
-          
-          // 验证号码范围
-          if (red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-            results.push({ issue, red, blue, date });
-          }
+        // 验证号码范围
+        if (red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+          results.push({ issue, red, blue, date });
+        } else {
+          console.log(`号码范围验证失败: ${issue} - 红球: ${red}, 蓝球: ${blue}`);
         }
-      } catch (e) {
-        console.log(`解析idcd.com数据项失败: ${JSON.stringify(item)}`, e.message);
+      } else {
+        console.log(`号码数量不符合预期: ${issue} - 实际数量: ${numbers.length}`);
       }
+    } catch (e) {
+      console.log(`解析数据项失败: ${JSON.stringify(match)}`, e.message);
     }
   }
   
   return results;
+}
+
+// 解析idcd.com API返回的格式（保留作为备份）
+function parseIdcdData(data) {
+  return [];
 }
       
 
