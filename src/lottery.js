@@ -294,6 +294,7 @@ async function tryOfficialAPI() {
 // 尝试第三方数据源
 async function tryThirdPartySources() {
   const urls = [
+    'https://www.500.com/api/xxx?lottery=ssq&format=json',
     'https://www.500.com/static/info/kaijiang/xml/ssq/list.xml',
     'https://datachart.500.com/ssq/history/newinc/history.php',
     'https://kaijiang.500.com/ssq.shtml',
@@ -307,10 +308,16 @@ async function tryThirdPartySources() {
       
       const headers = {
         'User-Agent': getRandomUserAgent(),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         'Referer': url
       };
+      
+      // 根据URL类型设置不同的Accept头
+      if (url.includes('format=json')) {
+        headers['Accept'] = 'application/json, text/plain, */*';
+      } else {
+        headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8';
+      }
       
       // 添加随机延迟
       await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
@@ -318,20 +325,33 @@ async function tryThirdPartySources() {
       const response = await fetch(url, { headers });
       
       if (response.ok) {
-        const html = await response.text();
+        const contentType = response.headers.get('content-type');
         
-        // 尝试不同的解析策略
-        let results = parseWithStrategy1(html);
-        if (results.length === 0) {
-          results = parseWithStrategy2(html);
-        }
-        if (results.length === 0) {
-          results = parseWithStrategy3(html);
-        }
-        
-        if (results.length > 0) {
-          console.log(`从 ${url} 成功解析 ${results.length} 条数据`);
-          return results;
+        // 如果是JSON格式的API
+        if (url.includes('format=json') && contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          const results = parse500JsonData(data);
+          if (results.length > 0) {
+            console.log(`从 ${url} 成功解析 ${results.length} 条JSON数据`);
+            return results;
+          }
+        } else {
+          // 处理HTML/XML格式
+          const html = await response.text();
+          
+          // 尝试不同的解析策略
+          let results = parseWithStrategy1(html);
+          if (results.length === 0) {
+            results = parseWithStrategy2(html);
+          }
+          if (results.length === 0) {
+            results = parseWithStrategy3(html);
+          }
+          
+          if (results.length > 0) {
+            console.log(`从 ${url} 成功解析 ${results.length} 条数据`);
+            return results;
+          }
         }
       }
     } catch (error) {
@@ -467,6 +487,77 @@ function parseWithStrategy2(html) {
       console.log('JSON解析失败:', e.message);
     }
   }
+  return results;
+}
+
+// 解析500.com JSON格式API数据
+function parse500JsonData(data) {
+  const results = [];
+  
+  // 根据500.com API可能的返回格式进行解析
+  if (data && typeof data === 'object') {
+    // 格式1: data包含数组
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (item.issue && item.red && item.blue) {
+          const red = Array.isArray(item.red) ? item.red : item.red.split(',').map(Number);
+          const blue = parseInt(item.blue);
+          const issue = item.issue.toString();
+          const date = item.date || item.draw_date || new Date().toISOString().split('T')[0];
+          
+          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+            results.push({ 
+              issue, 
+              red: red.sort((a, b) => a - b), 
+              blue, 
+              date 
+            });
+          }
+        }
+      }
+    }
+    // 格式2: data包含data属性（数组）
+    else if (data.data && Array.isArray(data.data)) {
+      for (const item of data.data) {
+        if (item.issue && item.red && item.blue) {
+          const red = Array.isArray(item.red) ? item.red : item.red.split(',').map(Number);
+          const blue = parseInt(item.blue);
+          const issue = item.issue.toString();
+          const date = item.date || item.draw_date || new Date().toISOString().split('T')[0];
+          
+          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+            results.push({ 
+              issue, 
+              red: red.sort((a, b) => a - b), 
+              blue, 
+              date 
+            });
+          }
+        }
+      }
+    }
+    // 格式3: data包含result属性（数组）
+    else if (data.result && Array.isArray(data.result)) {
+      for (const item of data.result) {
+        if (item.code && item.red && item.blue) {
+          const red = Array.isArray(item.red) ? item.red : item.red.split(',').map(Number);
+          const blue = parseInt(item.blue);
+          const issue = item.code.toString();
+          const date = item.date || item.draw_date || new Date().toISOString().split('T')[0];
+          
+          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+            results.push({ 
+              issue, 
+              red: red.sort((a, b) => a - b), 
+              blue, 
+              date 
+            });
+          }
+        }
+      }
+    }
+  }
+  
   return results;
 }
 
