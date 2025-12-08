@@ -16,7 +16,7 @@ database_id = "0213ff68-3f2d-43ca-9381-52cab401fc46"
 [[kv_namespaces]]
 binding = "SESSION_KV"
 id = "7122188fb5f64bd2841f14898b5f0780"
-preview_id = "your-preview-kv-namespace-id"
+preview_id = "7122188fb5f64bd2841f14898b5f0780"
 
 # 环境变量
 [vars]
