@@ -197,6 +197,7 @@ export async function crawlHistoryNumbers(request, env) {
       
       for (const item of results) {
         const [red1, red2, red3, red4, red5, red6] = item.red;
+        const [red1Order, red2Order, red3Order, red4Order, red5Order, red6Order] = item.redOrder || item.red;
         
         // 检查是否已存在
         const exists = await db.prepare(
@@ -205,9 +206,13 @@ export async function crawlHistoryNumbers(request, env) {
         
         if (exists && exists.count === 0) {
           await db.prepare(
-            `INSERT INTO lottery_history (issue_number, red_1, red_2, red_3, red_4, red_5, red_6, blue, draw_date) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          ).bind(item.issue, red1, red2, red3, red4, red5, red6, item.blue, item.date).run();
+            `INSERT INTO lottery_history (issue_number, red_1, red_2, red_3, red_4, red_5, red_6, 
+                                          red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order, 
+                                          blue, draw_date) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ).bind(item.issue, red1, red2, red3, red4, red5, red6, 
+                 red1Order, red2Order, red3Order, red4Order, red5Order, red6Order, 
+                 item.blue, item.date).run();
           insertedCount++;
         }
       }
@@ -282,11 +287,10 @@ async function tryThirdPartySources() {
   return [];
 }
 
-// 解析6.17500.cn网站的HTML内容
+// 解析6.17500.cn网站的HTML内容，只返回最新的一期开奖结果
 function parse17500HTML(html) {
+  console.log('开始解析17500.cn的HTML内容');
   const results = [];
-  
-  console.log('开始解析6.17500.cn的HTML内容');
   console.log('HTML内容长度:', html.length, '字符');
   
   try {
@@ -313,6 +317,8 @@ function parse17500HTML(html) {
     const issueDatePattern = /(\d{4}-\d{2}-\d{2})[\s\t]*(?:<[^>]*>)?[\s\t]*第[\s\t]*(?:<[^>]*>)?[\s\t]*(\d{4}\d{3})[\s\t]*(?:<[^>]*>)?[\s\t]*期/g;
     
     let issueMatch;
+    let latestResult = null;
+    let latestIssue = 0;
     let matchCount = 0;
     
     while ((issueMatch = issueDatePattern.exec(content)) !== null) {
@@ -346,7 +352,10 @@ function parse17500HTML(html) {
         const numbers = numbersMatch.slice(1).map(Number).filter(n => !isNaN(n));
         
         if (numbers.length === 7) {
-          const red = numbers.slice(0, 6).sort((a, b) => a - b);
+          // 红球按开奖顺序保存（不排序）
+          const redOrder = numbers.slice(0, 6);
+          // 红球按大小排序保存
+          const red = [...redOrder].sort((a, b) => a - b);
           const blue = numbers[6];
           
           // 验证号码范围
@@ -354,8 +363,15 @@ function parse17500HTML(html) {
           const isValidBlue = blue >= 1 && blue <= 16;
           
           if (isValidRed && isValidBlue) {
-            results.push({ issue, red, blue, date });
-            console.log(`成功解析: 期号 ${issue}, 日期 ${date}, 开奖号码: ${red.join(' ')} ${blue}`);
+            const currentIssue = parseInt(issue);
+            // 只保留最新的一期
+            if (currentIssue > latestIssue) {
+              latestIssue = currentIssue;
+              latestResult = { issue, red, blue, date, redOrder };
+              console.log(`找到最新期号: ${issue}, 日期 ${date}, 开奖号码: ${redOrder.join(' ')} ${blue}`);
+              // 解析到最新一期后可以提前退出
+              break;
+            }
           } else {
             console.log(`号码范围验证失败: ${issue} - 红球: ${red}, 蓝球: ${blue}`);
           }
@@ -373,10 +389,13 @@ function parse17500HTML(html) {
       }
     }
     
-    console.log(`解析完成，共处理 ${matchCount} 个期号，成功解析 ${results.length} 条记录`);
-    
-    // 按期号降序排序
-    results.sort((a, b) => b.issue - a.issue);
+    // 如果找到最新一期，添加到结果
+    if (latestResult) {
+      results.push(latestResult);
+      console.log(`解析完成，共处理 ${matchCount} 个期号，只保留最新的一期: ${latestResult.issue}`);
+    } else {
+      console.log(`解析完成，共处理 ${matchCount} 个期号，未找到有效记录`);
+    }
     
   } catch (e) {
     console.error('解析过程中发生严重错误:', e);
