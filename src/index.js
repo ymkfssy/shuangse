@@ -1,5 +1,5 @@
 // import { getAssetFromKV } from '@cloudflare/kv-asset-handler';  // 暂时注释掉，避免KV依赖
-import { handleLogin, handleRegister, handleLogout, isAuthenticated } from './auth.js';
+import { handleLogin, handleRegister, handleLogout, isAuthenticated, getUserFromSession } from './auth.js';
 import { getHistoryNumbers, generateNewNumber, crawlHistoryNumbers } from './lottery.js';
 import { initDatabase, getDB } from './database.js';
 
@@ -9,9 +9,12 @@ async function handleRequest(request) {
   const pathname = url.pathname;
 
   // 检查是否需要身份验证
-  const requiresAuth = ['/app', '/generate', '/history'].includes(pathname);
+  const requiresAuth = ['/app', '/api/generate', '/api/history', '/api/crawl'].includes(pathname);
   if (requiresAuth && !await isAuthenticated(request)) {
-    return new Response('Unauthorized', { status: 302, headers: { Location: '/login.html' } });
+    return new Response(JSON.stringify({ error: '请先登录' }), { 
+      status: 401, 
+      headers: { 'Content-Type': 'application/json' } 
+    });
   }
 
   // API路由处理
@@ -36,30 +39,25 @@ async function handleRequest(request) {
   }
 
   // 静态文件处理 - 简化版本，避免KV依赖
-  if (pathname.endsWith('.html') || pathname.endsWith('.css') || pathname.endsWith('.js')) {
-    try {
-      // 读取静态文件（生产环境中需要正确处理）
-      let filePath = pathname === '/' ? '/public/login.html' : pathname;
-      if (!filePath.startsWith('/public/')) {
-        filePath = '/public' + filePath;
-      }
-      
-      // 简单的文件路径映射
-      if (pathname === '/app.html' || pathname === '/app') {
-        return new Response(getAppHTML(), {
-          headers: { 'Content-Type': 'text/html' }
-        });
-      }
-      
-      if (pathname === '/login.html' || pathname === '/login' || pathname === '/') {
-        return new Response(getLoginHTML(), {
-          headers: { 'Content-Type': 'text/html' }
-        });
-      }
-      
-    } catch (e) {
-      return new Response(`Error: ${e.message}`, { status: 500 });
+  try {
+    // 路径映射
+    if (pathname === '/app.html' || pathname === '/app') {
+      return new Response(getAppHTML(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
     }
+    
+    if (pathname === '/login.html' || pathname === '/login' || pathname === '/') {
+      return new Response(getLoginHTML(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
+    }
+    
+    // 其他未匹配的路径
+    return new Response('Page not found', { status: 404 });
+    
+  } catch (e) {
+    return new Response(`Server Error: ${e.message}`, { status: 500 });
   }
 }
 
