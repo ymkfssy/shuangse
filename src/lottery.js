@@ -33,10 +33,10 @@ async function isNumberExists(env, redNumbers, blueNumber) {
 }
 
 // 生成未出现过的双色球号码
-export async function generateNewNumber(request) {
+export async function generateNewNumber(request, env) {
   try {
     // 验证用户身份
-    const user = await getUserFromSession(request);
+    const user = await getUserFromSession(request, env);
     if (!user) {
       return new Response(JSON.stringify({ error: '用户未登录或会话已过期' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
@@ -84,7 +84,7 @@ export async function generateNewNumber(request) {
 }
 
 // 获取历史双色球号码
-export async function getHistoryNumbers(request) {
+export async function getHistoryNumbers(request, env) {
   try {
     const url = new URL(request.url);
     const limit = parseInt(url.searchParams.get('limit') || '100');

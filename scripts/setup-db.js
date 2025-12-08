@@ -7,12 +7,9 @@ async function setupDatabase() {
   console.log('开始设置双色球数据库...');
   
   try {
-    // 读取迁移文件
-    const migrationPath = path.join(__dirname, '../migrations/001_initial.sql');
-    const sessionsMigrationPath = path.join(__dirname, '../migrations/002_add_sessions.sql');
-    
-    const initialSQL = fs.readFileSync(migrationPath, 'utf8');
-    const sessionsSQL = fs.readFileSync(sessionsMigrationPath, 'utf8');
+    // 读取完整的数据库架构文件
+    const completeSchemaPath = path.join(__dirname, '../migrations/complete_schema.sql');
+    const completeSQL = fs.readFileSync(completeSchemaPath, 'utf8');
     
     console.log('✓ 迁移文件读取成功');
     
@@ -23,10 +20,8 @@ async function setupDatabase() {
     console.log('1. 创建数据库:');
     console.log('   npx wrangler d1 create shuangse-lottery-db');
     console.log('\n2. 更新 wrangler.toml 中的 database_id');
-    console.log('\n3. 执行初始迁移:');
-    console.log('   npx wrangler d1 execute shuangse-lottery-db --file=./migrations/001_initial.sql');
-    console.log('\n4. 执行会话表迁移:');
-    console.log('   npx wrangler d1 execute shuangse-lottery-db --file=./migrations/002_add_sessions.sql');
+    console.log('\n3. 执行完整数据库架构:');
+    console.log('   npx wrangler d1 execute shuangse-lottery-db --file=./migrations/complete_schema.sql');
     
     console.log('\n✓ 数据库设置脚本准备完成');
     

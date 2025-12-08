@@ -9,7 +9,7 @@
     "build": "echo 'Build completed'",
     "test": "node test-functions.js",
     "setup-db": "node scripts/setup-db.js",
-    "migrate": "wrangler d1 execute shuangse-lottery-db --file=./migrations/001_initial.sql && wrangler d1 execute shuangse-lottery-db --file=./migrations/002_add_sessions.sql",
+    "migrate": "wrangler d1 execute shuangse-lottery-db --file=./migrations/complete_schema.sql",
     "tail": "wrangler tail"
   },
   "dependencies": {

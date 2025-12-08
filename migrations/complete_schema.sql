@@ -1,5 +1,3 @@
-// 数据库初始化SQL - 使用完整架构
-const INIT_SQL = `
 -- =====================================================
 -- 双色球选号系统 - 完整数据库架构
 -- =====================================================
@@ -91,25 +89,16 @@ CREATE INDEX IF NOT EXISTS idx_user_numbers_user_generated ON user_numbers (user
 
 -- 历史开奖的组合索引（用于按日期排序查询）
 CREATE INDEX IF NOT EXISTS idx_lottery_history_date_issue ON lottery_history (draw_date DESC, issue_number);
-`;
 
-// 初始化数据库
-export async function initDatabase(env) {
-  try {
-    if (!env || !env.DB) {
-      throw new Error('Database not available');
-    }
-    await env.DB.exec(INIT_SQL);
-    return { success: true, message: 'Database initialized successfully' };
-  } catch (error) {
-    return { success: false, message: `Database initialization failed: ${error.message}` };
-  }
-}
+-- =====================================================
+-- 数据完整性约束（SQLite已通过外键实现）
+-- =====================================================
 
-// 导出数据库操作函数
-export function getDB(env) {
-  if (!env || !env.DB) {
-    throw new Error('Database not configured properly. Please check wrangler.toml configuration.');
-  }
-  return env.DB;
-}
+-- 插入示例数据（可选，用于测试）
+-- INSERT OR IGNORE INTO users (username, password) VALUES ('admin', '$2a$10$placeholder_hash');
+
+-- =====================================================
+-- 表统计信息（可选，用于性能优化）
+-- =====================================================
+
+-- ANALYZE;  -- 在插入初始数据后可以运行此命令优化查询计划

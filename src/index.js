@@ -4,13 +4,13 @@ import { getHistoryNumbers, generateNewNumber, crawlHistoryNumbers } from './lot
 import { initDatabase, getDB } from './database.js';
 
 // 处理HTTP请求
-async function handleRequest(request) {
+async function handleRequest(request, env, ctx) {
   const url = new URL(request.url);
   const pathname = url.pathname;
 
   // 检查是否需要身份验证
   const requiresAuth = ['/app', '/api/generate', '/api/history', '/api/crawl'].includes(pathname);
-  if (requiresAuth && !await isAuthenticated(request)) {
+  if (requiresAuth && !await isAuthenticated(request, env)) {
     return new Response(JSON.stringify({ error: '请先登录' }), { 
       status: 401, 
       headers: { 'Content-Type': 'application/json' } 
@@ -22,17 +22,17 @@ async function handleRequest(request) {
     const apiPath = pathname.slice(5);
     
     if (apiPath === 'login' && request.method === 'POST') {
-      return handleLogin(request);
+      return handleLogin(request, env);
     } else if (apiPath === 'register' && request.method === 'POST') {
-      return handleRegister(request);
+      return handleRegister(request, env);
     } else if (apiPath === 'logout' && request.method === 'POST') {
-      return handleLogout(request);
+      return handleLogout(request, env);
     } else if (apiPath === 'history' && request.method === 'GET') {
-      return getHistoryNumbers(request);
+      return getHistoryNumbers(request, env);
     } else if (apiPath === 'generate' && request.method === 'GET') {
-      return generateNewNumber(request);
+      return generateNewNumber(request, env);
     } else if (apiPath === 'crawl' && request.method === 'POST') {
-      return crawlHistoryNumbers(request);
+      return crawlHistoryNumbers(request, env);
     }
     
     return new Response('Not Found', { status: 404 });

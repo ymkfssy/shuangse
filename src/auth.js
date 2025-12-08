@@ -8,9 +8,8 @@ function generateSessionId() {
 }
 
 // 注册新用户
-export async function handleRegister(request) {
+export async function handleRegister(request, env) {
   try {
-    const env = request.env;
     const data = await request.json();
     const { username, password } = data;
 
@@ -42,9 +41,8 @@ export async function handleRegister(request) {
 }
 
 // 用户登录
-export async function handleLogin(request) {
+export async function handleLogin(request, env) {
   try {
-    const env = request.env;
     const data = await request.json();
     const { username, password } = data;
 
@@ -106,9 +104,8 @@ export async function handleLogin(request) {
 }
 
 // 用户登出
-export async function handleLogout(request) {
+export async function handleLogout(request, env) {
   try {
-    const env = request.env;
     const cookies = cookie.parse(request.headers.get('Cookie') || '');
     const sessionId = cookies.session;
 
@@ -131,9 +128,8 @@ export async function handleLogout(request) {
 }
 
 // 从会话中获取用户信息
-export async function getUserFromSession(request) {
+export async function getUserFromSession(request, env) {
   try {
-    const env = request.env;
     const cookies = cookie.parse(request.headers.get('Cookie') || '');
     const sessionId = cookies.session;
 
@@ -155,7 +151,7 @@ export async function getUserFromSession(request) {
 }
 
 // 验证用户是否已认证
-export async function isAuthenticated(request) {
-  const user = await getUserFromSession(request);
+export async function isAuthenticated(request, env) {
+  const user = await getUserFromSession(request, env);
   return !!user;
 }
