@@ -69,9 +69,6 @@ export async function handleLogin(request) {
 
     // 生成会话ID
     const sessionId = generateSessionId();
-    
-    // 存储会话信息到KV（这里简化处理，实际应该使用KV存储）
-    // await env.SESSION_KV.put(sessionId, JSON.stringify({ userId: user.id, username: user.username }), { expirationTtl: 86400 });
 
     // 返回带有会话cookie的响应
     return new Response(JSON.stringify({ success: true, message: '登录成功' }), { 
@@ -98,18 +95,8 @@ export async function isAuthenticated(request) {
     const cookies = cookie.parse(request.headers.get('Cookie') || '');
     const sessionId = cookies.session;
 
-    if (!sessionId) {
-      return false;
-    }
-
-    // 从KV获取会话信息（这里简化处理）
-    // const sessionData = await env.SESSION_KV.get(sessionId);
-    // if (!sessionData) {
-    //   return false;
-    // }
-
-    // 这里简化处理，实际应该验证会话有效性
-    return true;
+    // 简化的会话验证：只检查是否存在会话cookie
+    return !!sessionId;
   } catch (error) {
     return false;
   }
