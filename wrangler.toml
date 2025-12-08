@@ -15,7 +15,7 @@ database_id = "0213ff68-3f2d-43ca-9381-52cab401fc46"
 # KV存储配置 - 部署前请替换为实际的KV命名空间ID
 [[kv_namespaces]]
 binding = "SESSION_KV"
-id = "bd5b39e59e5b46e2a54731a49a200261"
+id = "7122188fb5f64bd2841f14898b5f0780"
 preview_id = "your-preview-kv-namespace-id"
 
 # 环境变量
