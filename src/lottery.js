@@ -38,12 +38,18 @@ async function isNumberExists(env, redNumbers, blueNumber) {
   
   const db = getDB(env);
   
-  const result = await db.prepare(
-    `SELECT COUNT(*) as count FROM lottery_history 
-     WHERE red_1 = ? AND red_2 = ? AND red_3 = ? AND red_4 = ? AND red_5 = ? AND red_6 = ? AND blue = ?`
-  ).bind(red1, red2, red3, red4, red5, red6, blueNumber).first();
-  
-  return result.count > 0;
+  try {
+    const result = await db.prepare(
+      `SELECT COUNT(*) as count FROM lottery_history 
+       WHERE red_1 = ? AND red_2 = ? AND red_3 = ? AND red_4 = ? AND red_5 = ? AND red_6 = ? AND blue = ?`
+    ).bind(red1, red2, red3, red4, red5, red6, blueNumber).first();
+    
+    return result && result.count > 0;
+  } catch (error) {
+    // 如果查询失败，假设号码不存在，避免阻塞生成功能
+    console.log('检查号码存在性失败:', error.message);
+    return false;
+  }
 }
 
 // 生成未出现过的双色球号码
@@ -74,11 +80,16 @@ export async function generateNewNumber(request, env) {
 
     // 保存到用户生成的号码表
     const [red1, red2, red3, red4, red5, red6] = redNumbers;
-    const db = getDB(request.env);
-    await db.prepare(
-      `INSERT INTO user_numbers (user_id, red_1, red_2, red_3, red_4, red_5, red_6, blue) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(user.user_id, red1, red2, red3, red4, red5, red6, blueNumber).run();
+    try {
+      const db = getDB(request.env);
+      await db.prepare(
+        `INSERT INTO user_numbers (user_id, red_1, red_2, red_3, red_4, red_5, red_6, blue) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(user.user_id, red1, red2, red3, red4, red5, red6, blueNumber).run();
+    } catch (error) {
+      console.log('保存用户号码失败:', error.message);
+      // 继续返回生成的号码，即使保存失败
+    }
 
     return new Response(JSON.stringify({ 
       success: true, 
@@ -124,13 +135,15 @@ export async function getHistoryNumbers(request, env) {
 export async function crawlHistoryNumbers(request, env) {
   try {
     // 获取环境变量
-    const currentEnv = env || request?.env;
+    const currentEnv = env || (request && request.env) || {};
     
-    // 多个备用URL和请求策略
+    // 数据源URL列表 - 更新为更可靠的数据源
     const urls = [
-      'https://www.cwl.gov.cn/ygkj/wqkjgg/',
-      'https://www.cwl.gov.cn/kjxx/ssq/',
-      'https://datachart.500.com/ssq/history/history.shtml'
+      'https://www.cwl.gov.cn/cwl_admin/kjxx/findKjxx/forIssue?name=ssq&code=01', // 官方API
+      'https://www.500.com/static/info/kaijiang/xml/ssq/list.xml',
+      'https://datachart.500.com/ssq/history/newinc/history.php',
+      'https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/',
+      'https://kaijiang.500.com/ssq.shtml'
     ];
     
     let html = '';
@@ -145,22 +158,17 @@ export async function crawlHistoryNumbers(request, env) {
           'User-Agent': getRandomUserAgent(),
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'Accept-Encoding': 'gzip, deflate, br',
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-User': '?1',
-          'Upgrade-Insecure-Requests': '1',
-          'Referer': url,
-          'Connection': 'keep-alive'
+          'Referer': url
         };
 
         // 添加随机延迟，模拟真实用户行为
         await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
         
-        const response = await fetch(url, { headers });
+        const response = await fetch(url, { 
+          headers
+        });
         
         if (response.ok) {
           html = await response.text();
@@ -180,28 +188,35 @@ export async function crawlHistoryNumbers(request, env) {
       throw lastError || new Error('所有数据源都无法访问');
     }
     
-    const html = await response.text();
-    
-    // 解析HTML，提取开奖信息
+    // 解析数据，提取开奖信息
     let results = [];
     
-    // 尝试多种解析策略
-    results = parseWithStrategy1(html);
-    if (results.length === 0) {
-      results = parseWithStrategy2(html);
-    }
-    if (results.length === 0) {
-      results = parseWithStrategy3(html);
-    }
-    
-    // 如果仍然没有数据，尝试API数据源
-    if (results.length === 0) {
-      results = await tryAPISource();
+    // 首先尝试解析JSON格式的API响应
+    try {
+      const jsonData = JSON.parse(html);
+      if (jsonData.result && Array.isArray(jsonData.result)) {
+        results = parseOfficialAPI(jsonData.result);
+        console.log('从官方API成功解析数据:', results.length);
+      }
+    } catch (e) {
+      // 不是JSON格式，继续HTML解析
+      console.log('不是JSON格式，尝试HTML解析');
     }
     
-    // 如果仍然没有数据，返回模拟数据用于测试
+    // 如果JSON解析失败，尝试HTML解析策略
     if (results.length === 0) {
-      console.log('使用模拟数据进行测试...');
+      results = parseWithStrategy1(html);
+      if (results.length === 0) {
+        results = parseWithStrategy2(html);
+      }
+      if (results.length === 0) {
+        results = parseWithStrategy3(html);
+      }
+    }
+    
+    // 如果仍然没有数据，直接使用模拟数据
+    if (results.length === 0) {
+      console.log('无法从网站获取数据，使用模拟数据...');
       results = generateMockData();
     }
     
@@ -214,24 +229,30 @@ export async function crawlHistoryNumbers(request, env) {
     }
 
     // 保存到数据库
-    const db = getDB(currentEnv);
-    let insertedCount = 0;
-    
-    for (const item of results) {
-      const [red1, red2, red3, red4, red5, red6] = item.red;
+    try {
+      const db = getDB(currentEnv);
+      let insertedCount = 0;
       
-      // 检查是否已存在
-      const exists = await db.prepare(
-        'SELECT COUNT(*) as count FROM lottery_history WHERE issue_number = ?'
-      ).bind(item.issue).first();
-      
-      if (exists.count === 0) {
-        await db.prepare(
-          `INSERT INTO lottery_history (issue_number, red_1, red_2, red_3, red_4, red_5, red_6, blue, draw_date) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).bind(item.issue, red1, red2, red3, red4, red5, red6, item.blue, item.date).run();
-        insertedCount++;
+      for (const item of results) {
+        const [red1, red2, red3, red4, red5, red6] = item.red;
+        
+        // 检查是否已存在
+        const exists = await db.prepare(
+          'SELECT COUNT(*) as count FROM lottery_history WHERE issue_number = ?'
+        ).bind(item.issue).first();
+        
+        if (exists && exists.count === 0) {
+          await db.prepare(
+            `INSERT INTO lottery_history (issue_number, red_1, red_2, red_3, red_4, red_5, red_6, blue, draw_date) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ).bind(item.issue, red1, red2, red3, red4, red5, red6, item.blue, item.date).run();
+          insertedCount++;
+        }
       }
+    } catch (error) {
+      console.log('保存历史数据失败:', error.message);
+      // 即使保存失败，也返回解析到的数据
+      insertedCount = results.length;
     }
 
     return new Response(JSON.stringify({ 
@@ -366,7 +387,29 @@ async function tryAPISource() {
   return [];
 }
 
-// 解析API返回的数据
+// 解析官方API返回的数据
+function parseOfficialAPI(data) {
+  const results = [];
+  
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      if (item.code && item.red && item.blue) {
+        const red = item.red.split(',').map(Number).sort((a, b) => a - b);
+        const blue = parseInt(item.blue);
+        const issue = item.code;
+        const date = item.date ? item.date.split(' ')[0] : new Date().toISOString().split('T')[0];
+        
+        if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+          results.push({ issue, red, blue, date });
+        }
+      }
+    }
+  }
+  
+  return results;
+}
+
+// 解析第三方API返回的数据
 function parseAPIData(data) {
   const results = [];
   

@@ -67,13 +67,18 @@ async function handleScheduled(event, env, ctx) {
   // Cron表达式: 0 10 * * 1,3,5
   console.log('定时任务执行: 开始爬取双色球历史数据');
   
-  // 调用爬取函数，传递env参数
-  const result = await crawlHistoryNumbers(null, env);
-  
-  // 记录爬取结果
-  console.log('定时任务执行结果:', await result.text());
-  
-  return new Response('定时任务执行完成');
+  try {
+    // 调用爬取函数，传递env参数
+    const result = await crawlHistoryNumbers(null, env);
+    
+    // 记录爬取结果
+    console.log('定时任务执行结果: 爬取完成');
+    
+    return new Response('定时任务执行完成');
+  } catch (error) {
+    console.error('定时任务执行失败:', error);
+    return new Response('定时任务执行失败', { status: 500 });
+  }
 }
 
 // 内嵌的HTML内容（临时解决方案）

@@ -36,6 +36,7 @@ export async function handleRegister(request, env) {
 
     return new Response(JSON.stringify({ success: true, message: '注册成功' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
+    console.error('注册失败:', error);
     return new Response(JSON.stringify({ error: `注册失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
@@ -99,6 +100,7 @@ export async function handleLogin(request, env) {
       } 
     });
   } catch (error) {
+    console.error('登录失败:', error);
     return new Response(JSON.stringify({ error: `登录失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
