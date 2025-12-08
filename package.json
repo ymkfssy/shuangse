@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "build": "echo 'Build completed'"
+    "build": "echo 'Build completed'",
+    "test": "node test-functions.js",
+    "setup-db": "node scripts/setup-db.js",
+    "migrate": "wrangler d1 execute shuangse-lottery-db --file=./migrations/001_initial.sql && wrangler d1 execute shuangse-lottery-db --file=./migrations/002_add_sessions.sql",
+    "tail": "wrangler tail"
   },
   "dependencies": {
     "@cloudflare/kv-asset-handler": "^0.3.0",

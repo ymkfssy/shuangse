@@ -1,4 +1,5 @@
 import { getDB } from './database.js';
+import { getUserFromSession } from './auth.js';
 
 // 生成6个不重复的红球号码（1-33）
 function generateRedNumbers() {
@@ -34,6 +35,12 @@ async function isNumberExists(env, redNumbers, blueNumber) {
 // 生成未出现过的双色球号码
 export async function generateNewNumber(request) {
   try {
+    // 验证用户身份
+    const user = await getUserFromSession(request);
+    if (!user) {
+      return new Response(JSON.stringify({ error: '用户未登录或会话已过期' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+
     let attempts = 0;
     const maxAttempts = 1000;
     let redNumbers, blueNumber;
@@ -48,12 +55,8 @@ export async function generateNewNumber(request) {
     }
 
     if (attempts >= maxAttempts) {
-      return new Response(JSON.stringify({ error: '生成号码失败，请稍后重试' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: '生成号码失败，可能所有组合都已出现过，请稍后重试' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
-
-    // 解析用户ID（这里简化处理，实际应该从会话中获取）
-    // const userId = await getUserIdFromSession(request);
-    const userId = 1; // 测试用
 
     // 保存到用户生成的号码表
     const [red1, red2, red3, red4, red5, red6] = redNumbers;
@@ -61,14 +64,19 @@ export async function generateNewNumber(request) {
     await db.prepare(
       `INSERT INTO user_numbers (user_id, red_1, red_2, red_3, red_4, red_5, red_6, blue) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(userId, red1, red2, red3, red4, red5, red6, blueNumber).run();
+    ).bind(user.user_id, red1, red2, red3, red4, red5, red6, blueNumber).run();
 
     return new Response(JSON.stringify({ 
       success: true, 
       numbers: { 
         red: redNumbers, 
         blue: blueNumber 
-      } 
+      },
+      user: {
+        id: user.user_id,
+        username: user.username
+      },
+      attempts: attempts
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     return new Response(JSON.stringify({ error: `生成号码失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
@@ -107,41 +115,79 @@ export async function crawlHistoryNumbers(request, env) {
     // 从中国福彩官网获取数据
     const response = await fetch('https://www.cwl.gov.cn/ygkj/wqkjgg/', {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
       }
     });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
     const html = await response.text();
     
     // 解析HTML，提取开奖信息
     const results = [];
     
-    // 使用正则表达式匹配开奖数据行
-    const rowRegex = /<tr>\s*<td>(\d{7})<\/td>\s*<td>(\d{4}-\d{2}-\d{2})\([^)]+\)<\/td>\s*<td>([\d\s]+)<\/td>/g;
-    let match;
+    // 改进的正则表达式，更准确地匹配福彩网站的数据结构
+    // 匹配表格中的开奖数据行
+    const tableRowRegex = /<tr[^>]*>[\s\S]*?<\/tr>/g;
+    const rows = html.match(tableRowRegex) || [];
     
-    while ((match = rowRegex.exec(html)) !== null) {
-      const issue = match[1];
-      const date = match[2];
-      const numbers = match[3].trim().split(/\s+/).map(Number);
+    for (const row of rows) {
+      // 提取期号
+      const issueMatch = row.match(/>(\d{7})</);
+      // 提取日期
+      const dateMatch = row.match(/>(\d{4}-\d{2}-\d{2})/);
+      // 提取红球和蓝球号码
+      const numbersMatch = row.match(/(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})/);
       
-      if (numbers.length === 7) {
-        const red = numbers.slice(0, 6).sort((a, b) => a - b);
-        const blue = numbers[6];
+      if (issueMatch && dateMatch && numbersMatch) {
+        const issue = issueMatch[1];
+        const date = dateMatch[1];
+        const numbers = numbersMatch.slice(1).map(Number);
         
-        results.push({
-          issue,
-          red,
-          blue,
-          date
-        });
+        if (numbers.length === 7) {
+          const red = numbers.slice(0, 6).sort((a, b) => a - b);
+          const blue = numbers[6];
+          
+          // 验证号码的有效性
+          if (red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+            results.push({
+              issue,
+              red,
+              blue,
+              date
+            });
+          }
+        }
+      }
+    }
+    
+    // 如果没有匹配到数据，尝试备用解析方式
+    if (results.length === 0) {
+      // 尝试匹配JSON格式的数据
+      const jsonMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*({.+?});/);
+      if (jsonMatch) {
+        try {
+          const jsonData = JSON.parse(jsonMatch[1]);
+          // 这里需要根据实际的JSON结构来解析
+          console.log('找到JSON数据，但需要根据实际结构调整解析逻辑');
+        } catch (e) {
+          console.log('JSON解析失败:', e.message);
+        }
       }
     }
     
     if (results.length === 0) {
       return new Response(JSON.stringify({ 
         success: false, 
-        message: '未找到开奖数据' 
+        message: '未找到开奖数据，网站结构可能已变更',
+        html_length: html.length
       }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     }
 
@@ -168,9 +214,16 @@ export async function crawlHistoryNumbers(request, env) {
 
     return new Response(JSON.stringify({ 
       success: true, 
-      message: `成功爬取 ${results.length} 条历史数据，其中 ${insertedCount} 条是新数据` 
+      message: `成功爬取 ${results.length} 条历史数据，其中 ${insertedCount} 条是新数据`,
+      details: {
+        total_parsed: results.length,
+        new_records: insertedCount
+      }
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
-    return new Response(JSON.stringify({ error: `爬取失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ 
+      error: `爬取失败: ${error.message}`,
+      stack: error.stack
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }

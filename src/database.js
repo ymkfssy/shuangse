@@ -8,6 +8,16 @@ const INIT_SQL = `
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  -- 会话表
+  CREATE TABLE IF NOT EXISTS sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  );
+
   -- 历史双色球号码表
   CREATE TABLE IF NOT EXISTS lottery_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,6 +52,9 @@ const INIT_SQL = `
   );
 
   -- 索引创建
+  CREATE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions (session_id);
+  CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id);
+  CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions (expires_at);
   CREATE INDEX IF NOT EXISTS idx_lottery_history_red_1 ON lottery_history (red_1);
   CREATE INDEX IF NOT EXISTS idx_lottery_history_red_2 ON lottery_history (red_2);
   CREATE INDEX IF NOT EXISTS idx_lottery_history_red_3 ON lottery_history (red_3);
@@ -49,6 +62,7 @@ const INIT_SQL = `
   CREATE INDEX IF NOT EXISTS idx_lottery_history_red_5 ON lottery_history (red_5);
   CREATE INDEX IF NOT EXISTS idx_lottery_history_red_6 ON lottery_history (red_6);
   CREATE INDEX IF NOT EXISTS idx_lottery_history_blue ON lottery_history (blue);
+  CREATE INDEX IF NOT EXISTS idx_user_numbers_user_id ON user_numbers (user_id);
 `;
 
 // 初始化数据库

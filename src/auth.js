@@ -69,9 +69,25 @@ export async function handleLogin(request) {
 
     // 生成会话ID
     const sessionId = generateSessionId();
+    
+    // 设置会话过期时间为24小时后
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
+    // 保存会话到数据库
+    await db.prepare(
+      'INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, ?)'
+    ).bind(sessionId, user.id, expiresAt.toISOString()).run();
 
     // 返回带有会话cookie的响应
-    return new Response(JSON.stringify({ success: true, message: '登录成功' }), { 
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: '登录成功',
+      user: {
+        id: user.id,
+        username: user.username
+      }
+    }), { 
       status: 200, 
       headers: {
         'Content-Type': 'application/json',
@@ -89,15 +105,57 @@ export async function handleLogin(request) {
   }
 }
 
-// 验证用户是否已认证
-export async function isAuthenticated(request) {
+// 用户登出
+export async function handleLogout(request) {
   try {
+    const env = request.env;
     const cookies = cookie.parse(request.headers.get('Cookie') || '');
     const sessionId = cookies.session;
 
-    // 简化的会话验证：只检查是否存在会话cookie
-    return !!sessionId;
+    if (sessionId) {
+      // 从数据库中删除会话
+      const db = getDB(env);
+      await db.prepare('DELETE FROM sessions WHERE session_id = ?').bind(sessionId).run();
+    }
+
+    return new Response(JSON.stringify({ success: true, message: '登出成功' }), { 
+      status: 200, 
+      headers: { 
+        'Content-Type': 'application/json',
+        'Set-Cookie': 'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict'
+      } 
+    });
   } catch (error) {
-    return false;
+    return new Response(JSON.stringify({ error: `登出失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
+}
+
+// 从会话中获取用户信息
+export async function getUserFromSession(request) {
+  try {
+    const env = request.env;
+    const cookies = cookie.parse(request.headers.get('Cookie') || '');
+    const sessionId = cookies.session;
+
+    if (!sessionId) {
+      return null;
+    }
+
+    // 查找有效的会话
+    const db = getDB(env);
+    const session = await db.prepare(
+      'SELECT s.*, u.id as user_id, u.username FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.session_id = ? AND s.expires_at > datetime("now")'
+    ).bind(sessionId).first();
+
+    return session;
+  } catch (error) {
+    console.error('Session validation error:', error);
+    return null;
+  }
+}
+
+// 验证用户是否已认证
+export async function isAuthenticated(request) {
+  const user = await getUserFromSession(request);
+  return !!user;
 }

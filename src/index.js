@@ -1,5 +1,5 @@
 import { getAssetFromKV } from '@cloudflare/kv-asset-handler';
-import { handleLogin, handleRegister, isAuthenticated } from './auth.js';
+import { handleLogin, handleRegister, handleLogout, isAuthenticated } from './auth.js';
 import { getHistoryNumbers, generateNewNumber, crawlHistoryNumbers } from './lottery.js';
 import { initDatabase, getDB } from './database.js';
 
@@ -23,13 +23,7 @@ async function handleRequest(request) {
     } else if (apiPath === 'register' && request.method === 'POST') {
       return handleRegister(request);
     } else if (apiPath === 'logout' && request.method === 'POST') {
-      return new Response('OK', { 
-        status: 302, 
-        headers: { 
-          Location: '/login.html',
-          'Set-Cookie': 'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-        }
-      });
+      return handleLogout(request);
     } else if (apiPath === 'history' && request.method === 'GET') {
       return getHistoryNumbers(request);
     } else if (apiPath === 'generate' && request.method === 'GET') {
