@@ -52,8 +52,8 @@ async function isNumberExists(env, redNumbers, blueNumber) {
   }
 }
 
-// 生成未出现过的双色球号码
-export async function generateNewNumber(request, env) {
+// 批量生成未出现过的双色球号码
+export async function generateNewNumbers(request, env) {
   try {
     // 验证用户身份
     const user = await getUserFromSession(request, env);
@@ -61,51 +61,88 @@ export async function generateNewNumber(request, env) {
       return new Response(JSON.stringify({ error: '用户未登录或会话已过期' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
-    let attempts = 0;
-    const maxAttempts = 1000;
-    let redNumbers, blueNumber;
-    let exists = true;
-
-    // 生成未出现过的号码
-    while (exists && attempts < maxAttempts) {
-      redNumbers = generateRedNumbers();
-      blueNumber = generateBlueNumber();
-      exists = await isNumberExists(env, redNumbers, blueNumber);
-      attempts++;
+    // 获取生成数量参数，默认为1
+    const url = new URL(request.url);
+    const count = parseInt(url.searchParams.get('count') || '1');
+    
+    if (count < 1 || count > 10) {
+      return new Response(JSON.stringify({ error: '生成数量必须在1-10之间' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
-    if (attempts >= maxAttempts) {
-      return new Response(JSON.stringify({ error: '生成号码失败，可能所有组合都已出现过，请稍后重试' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-    }
+    const generatedNumbers = [];
+    const totalAttempts = [];
 
-    // 保存到用户生成的号码表
-    const [red1, red2, red3, red4, red5, red6] = redNumbers;
-    try {
-      const db = getDB(env);
-      await db.prepare(
-        `INSERT INTO user_numbers (user_id, red_1, red_2, red_3, red_4, red_5, red_6, blue) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(user.user_id, red1, red2, red3, red4, red5, red6, blueNumber).run();
-    } catch (error) {
-      console.log('保存用户号码失败:', error.message);
-      // 继续返回生成的号码，即使保存失败
+    for (let i = 0; i < count; i++) {
+      let attempts = 0;
+      const maxAttempts = 1000;
+      let redNumbers, blueNumber;
+      let exists = true;
+
+      // 生成未出现过的号码
+      while (exists && attempts < maxAttempts) {
+        redNumbers = generateRedNumbers();
+        blueNumber = generateBlueNumber();
+        exists = await isNumberExists(env, redNumbers, blueNumber);
+        attempts++;
+      }
+
+      if (attempts >= maxAttempts) {
+        return new Response(JSON.stringify({ 
+          error: `生成第${i+1}个号码失败，可能所有组合都已出现过，请稍后重试` 
+        }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // 保存到用户生成的号码表
+      const [red1, red2, red3, red4, red5, red6] = redNumbers;
+      try {
+        const db = getDB(env);
+        await db.prepare(
+          `INSERT INTO user_numbers (user_id, red_1, red_2, red_3, red_4, red_5, red_6, blue) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(user.user_id, red1, red2, red3, red4, red5, red6, blueNumber).run();
+      } catch (error) {
+        console.log('保存用户号码失败:', error.message);
+        // 继续返回生成的号码，即使保存失败
+      }
+
+      generatedNumbers.push({
+        red: redNumbers,
+        blue: blueNumber
+      });
+      totalAttempts.push(attempts);
     }
 
     return new Response(JSON.stringify({ 
       success: true, 
-      numbers: { 
-        red: redNumbers, 
-        blue: blueNumber 
-      },
+      numbers: generatedNumbers,
       user: {
         id: user.user_id,
         username: user.username
       },
-      attempts: attempts
+      attempts: totalAttempts,
+      total: count
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     return new Response(JSON.stringify({ error: `生成号码失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
+}
+
+// 生成单个号码（兼容旧版本）
+export async function generateNewNumber(request, env) {
+  const response = await generateNewNumbers(request, env);
+  if (response.status === 200) {
+    const data = await response.json();
+    // 如果只生成一个号码，返回单个号码的格式
+    if (data.numbers && data.numbers.length === 1) {
+      return new Response(JSON.stringify({
+        success: true,
+        numbers: data.numbers[0],
+        user: data.user,
+        attempts: data.attempts[0]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+  }
+  return response;
 }
 
 // 获取历史双色球号码
@@ -137,86 +174,20 @@ export async function crawlHistoryNumbers(request, env) {
     // 获取环境变量
     const currentEnv = env || (request && request.env) || {};
     
-    // 数据源URL列表 - 更新为更可靠的数据源
-    const urls = [
-      'https://www.cwl.gov.cn/cwl_admin/kjxx/findKjxx/forIssue?name=ssq&code=01', // 官方API
-      'https://www.500.com/static/info/kaijiang/xml/ssq/list.xml',
-      'https://datachart.500.com/ssq/history/newinc/history.php',
-      'https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/',
-      'https://kaijiang.500.com/ssq.shtml'
-    ];
+    console.log('开始爬取双色球历史数据...');
     
-    let html = '';
-    let lastError = null;
+    // 优先尝试官方API接口
+    let results = await tryOfficialAPI();
     
-    // 尝试多个数据源
-    for (const url of urls) {
-      try {
-        console.log(`尝试从 ${url} 获取数据...`);
-        
-        const headers = {
-          'User-Agent': getRandomUserAgent(),
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Referer': url
-        };
-
-        // 添加随机延迟，模拟真实用户行为
-        await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
-        
-        const response = await fetch(url, { 
-          headers
-        });
-        
-        if (response.ok) {
-          html = await response.text();
-          console.log(`成功从 ${url} 获取数据，长度: ${html.length}`);
-          break;
-        } else {
-          lastError = new Error(`HTTP error! status: ${response.status} from ${url}`);
-          console.log(`从 ${url} 获取数据失败: ${response.status}`);
-        }
-      } catch (error) {
-        lastError = error;
-        console.log(`请求 ${url} 异常:`, error.message);
-      }
-    }
-    
-    if (!html) {
-      throw lastError || new Error('所有数据源都无法访问');
-    }
-    
-    // 解析数据，提取开奖信息
-    let results = [];
-    
-    // 首先尝试解析JSON格式的API响应
-    try {
-      const jsonData = JSON.parse(html);
-      if (jsonData.result && Array.isArray(jsonData.result)) {
-        results = parseOfficialAPI(jsonData.result);
-        console.log('从官方API成功解析数据:', results.length);
-      }
-    } catch (e) {
-      // 不是JSON格式，继续HTML解析
-      console.log('不是JSON格式，尝试HTML解析');
-    }
-    
-    // 如果JSON解析失败，尝试HTML解析策略
+    // 如果官方API失败，尝试第三方数据源
     if (results.length === 0) {
-      results = parseWithStrategy1(html);
-      if (results.length === 0) {
-        results = parseWithStrategy2(html);
-      }
-      if (results.length === 0) {
-        results = parseWithStrategy3(html);
-      }
+      console.log('官方API获取失败，尝试第三方数据源...');
+      results = await tryThirdPartySources();
     }
     
-    // 如果仍然没有数据，直接使用模拟数据
+    // 如果仍然没有数据，使用模拟数据
     if (results.length === 0) {
-      console.log('无法从网站获取数据，使用模拟数据...');
+      console.log('所有数据源都失败，使用模拟数据...');
       results = generateMockData();
     }
     
@@ -269,6 +240,178 @@ export async function crawlHistoryNumbers(request, env) {
       stack: error.stack
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
+}
+
+// 尝试官方API接口
+async function tryOfficialAPI() {
+  const apiUrls = [
+    // 中国福彩官方API（需要验证实际可用性）
+    'https://www.cwl.gov.cn/cwl_admin/kjxx/findKjxx/forIssue?name=ssq&code=01&pageSize=50&pageNo=1',
+    'https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=01&provinceId=0&pageSize=30&pageNo=1',
+    'https://api.apiopen.top/ssqApi?type=lottery'
+  ];
+  
+  for (const url of apiUrls) {
+    try {
+      console.log(`尝试官方API: ${url}`);
+      
+      const headers = {
+        'User-Agent': getRandomUserAgent(),
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Referer': 'https://www.cwl.gov.cn/',
+        'Origin': 'https://www.cwl.gov.cn'
+      };
+      
+      // 添加随机延迟
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+      
+      const response = await fetch(url, { headers });
+      
+      if (response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          
+          // 根据不同的API返回格式解析数据
+          if (url.includes('cwl.gov.cn') && data.result) {
+            return parseCWLData(data.result);
+          } else if (url.includes('sporttery.cn') && data.success) {
+            return parseSportteryData(data.data);
+          } else if (url.includes('apiopen.top') && data.code === 200) {
+            return parseApiOpenData(data.data);
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`官方API ${url} 请求失败:`, error.message);
+    }
+  }
+  
+  return [];
+}
+
+// 尝试第三方数据源
+async function tryThirdPartySources() {
+  const urls = [
+    'https://www.500.com/static/info/kaijiang/xml/ssq/list.xml',
+    'https://datachart.500.com/ssq/history/newinc/history.php',
+    'https://kaijiang.500.com/ssq.shtml',
+    'https://www.zhcw.com/ssq/',
+    'https://www.sniuw.com/open/ssq/'
+  ];
+  
+  for (const url of urls) {
+    try {
+      console.log(`尝试第三方数据源: ${url}`);
+      
+      const headers = {
+        'User-Agent': getRandomUserAgent(),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Referer': url
+      };
+      
+      // 添加随机延迟
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+      
+      const response = await fetch(url, { headers });
+      
+      if (response.ok) {
+        const html = await response.text();
+        
+        // 尝试不同的解析策略
+        let results = parseWithStrategy1(html);
+        if (results.length === 0) {
+          results = parseWithStrategy2(html);
+        }
+        if (results.length === 0) {
+          results = parseWithStrategy3(html);
+        }
+        
+        if (results.length > 0) {
+          console.log(`从 ${url} 成功解析 ${results.length} 条数据`);
+          return results;
+        }
+      }
+    } catch (error) {
+      console.log(`第三方数据源 ${url} 请求失败:`, error.message);
+    }
+  }
+  
+  return [];
+}
+
+// 解析中国福彩官方数据
+function parseCWLData(data) {
+  const results = [];
+  
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      if (item.code && item.red && item.blue) {
+        const red = item.red.split(',').map(Number).sort((a, b) => a - b);
+        const blue = parseInt(item.blue);
+        const issue = item.code;
+        const date = item.date ? item.date.split(' ')[0] : new Date().toISOString().split('T')[0];
+        
+        if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+          results.push({ issue, red, blue, date });
+        }
+      }
+    }
+  }
+  
+  return results;
+}
+
+// 解析体彩网数据
+function parseSportteryData(data) {
+  const results = [];
+  
+  if (data && Array.isArray(data.list)) {
+    for (const item of data.list) {
+      if (item.lotteryDrawNum && item.lotteryDrawResult) {
+        const numbers = item.lotteryDrawResult.split('+');
+        if (numbers.length === 2) {
+          const red = numbers[0].split(',').map(Number).sort((a, b) => a - b);
+          const blue = parseInt(numbers[1]);
+          const issue = item.lotteryDrawNum;
+          const date = item.lotteryDrawTime ? item.lotteryDrawTime.split(' ')[0] : new Date().toISOString().split('T')[0];
+          
+          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+            results.push({ issue, red, blue, date });
+          }
+        }
+      }
+    }
+  }
+  
+  return results;
+}
+
+// 解析ApiOpen数据
+function parseApiOpenData(data) {
+  const results = [];
+  
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      if (item.expect && item.opencode) {
+        const numbers = item.opencode.split('+');
+        if (numbers.length === 2) {
+          const red = numbers[0].split(',').map(Number).sort((a, b) => a - b);
+          const blue = parseInt(numbers[1]);
+          const issue = item.expect;
+          const date = item.opentime ? item.opentime.split(' ')[0] : new Date().toISOString().split('T')[0];
+          
+          if (red.length === 6 && red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
+            results.push({ issue, red, blue, date });
+          }
+        }
+      }
+    }
+  }
+  
+  return results;
 }
 
 // 解析策略1：标准表格解析

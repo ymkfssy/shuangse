@@ -1,6 +1,6 @@
 // import { getAssetFromKV } from '@cloudflare/kv-asset-handler';  // 暂时注释掉，避免KV依赖
 import { handleLogin, handleRegister, handleLogout, isAuthenticated, getUserFromSession } from './auth.js';
-import { getHistoryNumbers, generateNewNumber, crawlHistoryNumbers } from './lottery.js';
+import { getHistoryNumbers, generateNewNumber, generateNewNumbers, crawlHistoryNumbers } from './lottery.js';
 import { initDatabase, getDB } from './database.js';
 
 // 处理HTTP请求
@@ -30,7 +30,15 @@ async function handleRequest(request, env, ctx) {
     } else if (apiPath === 'history' && request.method === 'GET') {
       return getHistoryNumbers(request, env);
     } else if (apiPath === 'generate' && request.method === 'GET') {
-      return generateNewNumber(request, env);
+      // 支持批量生成，通过count参数控制生成数量
+      const url = new URL(request.url);
+      const count = parseInt(url.searchParams.get('count') || '1');
+      
+      if (count > 1) {
+        return generateNewNumbers(request, env);
+      } else {
+        return generateNewNumber(request, env);
+      }
     } else if (apiPath === 'crawl' && request.method === 'POST') {
       return crawlHistoryNumbers(request, env);
     }
@@ -269,9 +277,24 @@ function getAppHTML() {
     <div class="container">
         <div class="card">
             <div class="number-display">
-                <h2>你的双色球号码</h2>
+                <h2>双色球号码生成</h2>
+                <div style="margin-bottom: 20px;">
+                    <label for="count-select">生成数量：</label>
+                    <select id="count-select" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                        <option value="1">1个号码</option>
+                        <option value="2">2个号码</option>
+                        <option value="3">3个号码</option>
+                        <option value="4">4个号码</option>
+                        <option value="5" selected>5个号码</option>
+                        <option value="6">6个号码</option>
+                        <option value="7">7个号码</option>
+                        <option value="8">8个号码</option>
+                        <option value="9">9个号码</option>
+                        <option value="10">10个号码</option>
+                    </select>
+                </div>
                 <div class="number-container" id="generated-numbers">
-                    <p>点击"生成新号码"开始</p>
+                    <p>请选择生成数量并点击"生成新号码"</p>
                 </div>
                 <button class="btn btn-success" onclick="generateNumber()">生成新号码</button>
                 <button class="btn" onclick="crawlHistory()">更新历史数据</button>
@@ -298,13 +321,15 @@ function getAppHTML() {
         }
 
         async function generateNumber() {
+            const count = document.getElementById('count-select').value;
+            
             try {
-                const response = await fetch('/api/generate');
+                const response = await fetch(\`/api/generate?count=\${count}\`);
                 const result = await response.json();
                 
                 if (response.ok) {
-                    displayGeneratedNumber(result.numbers);
-                    showMessage('号码生成成功！', 'success');
+                    displayGeneratedNumbers(result.numbers, count);
+                    showMessage(\`成功生成 \${count} 个号码！\`, 'success');
                 } else {
                     showMessage(result.error, 'error');
                 }
@@ -313,21 +338,66 @@ function getAppHTML() {
             }
         }
 
-        function displayGeneratedNumber(numbers) {
+        function displayGeneratedNumbers(numbers, count) {
             const container = document.getElementById('generated-numbers');
             container.innerHTML = '';
             
-            numbers.red.forEach(num => {
-                const ball = document.createElement('div');
-                ball.className = 'red-ball';
-                ball.textContent = num;
-                container.appendChild(ball);
-            });
-            
-            const blueBall = document.createElement('div');
-            blueBall.className = 'blue-ball';
-            blueBall.textContent = numbers.blue;
-            container.appendChild(blueBall);
+            if (count === 1) {
+                // 单个号码显示
+                const numberGroup = document.createElement('div');
+                numberGroup.className = 'number-group';
+                numberGroup.style.marginBottom = '20px';
+                
+                numbers.red.forEach(num => {
+                    const ball = document.createElement('div');
+                    ball.className = 'red-ball';
+                    ball.textContent = num;
+                    numberGroup.appendChild(ball);
+                });
+                
+                const blueBall = document.createElement('div');
+                blueBall.className = 'blue-ball';
+                blueBall.textContent = numbers.blue;
+                numberGroup.appendChild(blueBall);
+                
+                container.appendChild(numberGroup);
+            } else {
+                // 多个号码显示
+                numbers.forEach((number, index) => {
+                    const numberGroup = document.createElement('div');
+                    numberGroup.className = 'number-group';
+                    numberGroup.style.marginBottom = '15px';
+                    numberGroup.style.padding = '10px';
+                    numberGroup.style.border = '1px solid #f0f0f0';
+                    numberGroup.style.borderRadius = '4px';
+                    
+                    const groupTitle = document.createElement('div');
+                    groupTitle.textContent = \`第 \${index + 1} 组：\`;
+                    groupTitle.style.marginBottom = '10px';
+                    groupTitle.style.fontWeight = 'bold';
+                    groupTitle.style.color = '#666';
+                    
+                    const ballsContainer = document.createElement('div');
+                    ballsContainer.className = 'number-container';
+                    ballsContainer.style.justifyContent = 'flex-start';
+                    
+                    number.red.forEach(num => {
+                        const ball = document.createElement('div');
+                        ball.className = 'small-ball red-ball';
+                        ball.textContent = num;
+                        ballsContainer.appendChild(ball);
+                    });
+                    
+                    const blueBall = document.createElement('div');
+                    blueBall.className = 'small-ball blue-ball';
+                    blueBall.textContent = number.blue;
+                    ballsContainer.appendChild(blueBall);
+                    
+                    numberGroup.appendChild(groupTitle);
+                    numberGroup.appendChild(ballsContainer);
+                    container.appendChild(numberGroup);
+                });
+            }
         }
 
         async function getHistoryNumbers() {
