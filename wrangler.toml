@@ -1,4 +1,4 @@
-name = "shuangse-lottery"
+name = "shuangse"
 main = "src/index.js"
 workers_dev = true
 compatibility_date = "2024-01-29"
@@ -10,9 +10,13 @@ bucket = "public"
 # D1数据库配置 - 部署前请替换为实际的数据库ID
 [[d1_databases]]
 binding = "DB"
-database_id = "your-database-id"
+database_id = "0213ff68-3f2d-43ca-9381-52cab401fc46"
 
-# 注意：已移除KV存储配置，使用简化的会话管理方式
+# KV存储配置 - 部署前请替换为实际的KV命名空间ID
+[[kv_namespaces]]
+binding = "__shuangse-workers_sites_assets"
+id = "1cb719f5d5eb450fb4d4157a9fe6ae38"
+preview_id = "18fb8a24db554b58bd7112c706a40522"
 
 # 环境变量
 [vars]
@@ -24,5 +28,5 @@ local_protocol = "http"
 
 # 路由配置 - 可选，部署到自定义域名时使用
 #[route]
-#pattern = "your-domain.com/*"
-#zone_name = "your-domain.com"
+#pattern = "emo88.com/*"
+#zone_name = "emo88.com"
