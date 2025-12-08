@@ -15,9 +15,9 @@ database_id = "0213ff68-3f2d-43ca-9381-52cab401fc46"
 # KV存储配置 - 用于静态资源
 # 请将下面的ID替换为您实际创建的KV命名空间ID
 [[kv_namespaces]]
-binding = "__shuangse-workers_sites_assets"
+binding = "SESSION_KV"
 # 生产环境ID（执行 npx wrangler kv:namespace create "__shuangse-workers_sites_assets" 获取）
-id = "1cb719f5d5eb450fb4d4157a9fe6ae38"
+id = "b0c86a036556498c8490552da4b2c779"
 # 预览环境ID（执行 npx wrangler kv:namespace create "__shuangse-workers_sites_assets" --preview 获取）
 preview_id = "请替换为实际的preview-id"
 
@@ -35,5 +35,5 @@ local_protocol = "http"
 
 # 路由配置 - 可选，部署到自定义域名时使用
 #[route]
-#pattern = "emo88.com/*"
-#zone_name = "emo88.com"
+pattern = "emo88.com/*"
+zone_name = "emo88.com"
