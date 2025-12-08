@@ -14,8 +14,8 @@ database_id = "0213ff68-3f2d-43ca-9381-52cab401fc46"
 
 # KV存储配置 - 部署前请替换为实际的KV命名空间ID
 [[kv_namespaces]]
-binding = "SESSION_KV"
-id = "c8290542c8694d17b235f57bc6bb27ca"
+binding = "__shuangse-workers_sites_assets"
+id = "1cb719f5d5eb450fb4d4157a9fe6ae38"
 preview_id = "18fb8a24db554b58bd7112c706a40522"
 
 # 环境变量
