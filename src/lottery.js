@@ -286,36 +286,101 @@ async function tryThirdPartySources() {
 function parse17500HTML(html) {
   const results = [];
   
-  // 匹配开奖记录的正则表达式
-  // 格式：日期  第 期号 期  号码1 号码2 号码3 号码4 号码5 号码6 号码7
-  const pattern = /(\d{4}-\d{2}-\d{2})\s+第\s*(\d{7})\s*期\s+([\d\s]+)/g;
+  console.log('开始解析6.17500.cn的HTML内容');
+  console.log('HTML内容长度:', html.length, '字符');
   
-  let match;
-  while ((match = pattern.exec(html)) !== null) {
-    try {
-      const date = match[1];
-      const issue = match[2];
-      const numbersStr = match[3];
-      
-      // 提取所有数字并转换为数组
-      const numbers = numbersStr.trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
-      
-      if (numbers.length === 7) {
-        const red = numbers.slice(0, 6).sort((a, b) => a - b);
-        const blue = numbers[6];
-        
-        // 验证号码范围
-        if (red.every(n => n >= 1 && n <= 33) && blue >= 1 && blue <= 16) {
-          results.push({ issue, red, blue, date });
-        } else {
-          console.log(`号码范围验证失败: ${issue} - 红球: ${red}, 蓝球: ${blue}`);
-        }
-      } else {
-        console.log(`号码数量不符合预期: ${issue} - 实际数量: ${numbers.length}`);
-      }
-    } catch (e) {
-      console.log(`解析数据项失败: ${JSON.stringify(match)}`, e.message);
+  try {
+    // 1. 首先提取包含开奖记录的核心内容区域
+    // 查找包含开奖记录的表格或div
+    const contentMatch = html.match(/<table[^>]*class="[^>]*lottery[^>]*"[^>]*>([\s\S]*?)<\/table>/) || 
+                        html.match(/<div[^>]*class="[^>]*lottery[^>]*"[^>]*>([\s\S]*?)<\/div>/) ||
+                        html.match(/<table[^>]*>([\s\S]*?)<\/table>/);
+    
+    if (!contentMatch) {
+      console.log('未找到包含开奖记录的表格或div');
+      // 使用整个HTML作为备选
+      return results;
     }
+    
+    const content = contentMatch[1];
+    console.log('核心内容长度:', content.length, '字符');
+    
+    // 2. 匹配日期和期号的组合
+    // 支持多种格式：
+    // - 日期  第 期号 期
+    // - 日期  第期号期
+    // - 日期第期号期
+    const issueDatePattern = /(\d{4}-\d{2}-\d{2})[\s\t]*(?:<[^>]*>)?[\s\t]*第[\s\t]*(?:<[^>]*>)?[\s\t]*(\d{4}\d{3})[\s\t]*(?:<[^>]*>)?[\s\t]*期/g;
+    
+    let issueMatch;
+    let matchCount = 0;
+    
+    while ((issueMatch = issueDatePattern.exec(content)) !== null) {
+      matchCount++;
+      
+      try {
+        const date = issueMatch[1];
+        const issue = issueMatch[2];
+        
+        // 确保期号是7位数字
+        if (issue.length !== 7) {
+          console.log(`跳过不合法期号: ${issue}`);
+          continue;
+        }
+        
+        // 3. 从这个匹配位置开始查找号码
+        const numbersStartPos = issueDatePattern.lastIndex;
+        const numbersSection = content.substring(numbersStartPos, numbersStartPos + 200);
+        
+        // 匹配号码：支持数字之间的空格、制表符、HTML标签等
+        const numbersPattern = /([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})/;
+        
+        const numbersMatch = numbersSection.match(numbersPattern);
+        
+        if (!numbersMatch) {
+          console.log(`未找到期号 ${issue} 的号码`);
+          continue;
+        }
+        
+        // 提取号码并转换为数字
+        const numbers = numbersMatch.slice(1).map(Number).filter(n => !isNaN(n));
+        
+        if (numbers.length === 7) {
+          const red = numbers.slice(0, 6).sort((a, b) => a - b);
+          const blue = numbers[6];
+          
+          // 验证号码范围
+          const isValidRed = red.every(n => n >= 1 && n <= 33);
+          const isValidBlue = blue >= 1 && blue <= 16;
+          
+          if (isValidRed && isValidBlue) {
+            results.push({ issue, red, blue, date });
+            console.log(`成功解析: 期号 ${issue}, 日期 ${date}, 开奖号码: ${red.join(' ')} ${blue}`);
+          } else {
+            console.log(`号码范围验证失败: ${issue} - 红球: ${red}, 蓝球: ${blue}`);
+          }
+        } else {
+          console.log(`号码数量不符合预期: ${issue} - 实际数量: ${numbers.length}`);
+        }
+        
+        // 避免无限循环
+        if (issueDatePattern.lastIndex >= content.length - 100) {
+          break;
+        }
+        
+      } catch (e) {
+        console.error(`解析期号数据失败:`, e);
+      }
+    }
+    
+    console.log(`解析完成，共处理 ${matchCount} 个期号，成功解析 ${results.length} 条记录`);
+    
+    // 按期号降序排序
+    results.sort((a, b) => b.issue - a.issue);
+    
+  } catch (e) {
+    console.error('解析过程中发生严重错误:', e);
+    console.error('错误堆栈:', e.stack);
   }
   
   return results;
