@@ -229,9 +229,9 @@ export async function crawlHistoryNumbers(request, env) {
     }
 
     // 保存到数据库
+    let insertedCount = 0;
     try {
       const db = getDB(currentEnv);
-      let insertedCount = 0;
       
       for (const item of results) {
         const [red1, red2, red3, red4, red5, red6] = item.red;
