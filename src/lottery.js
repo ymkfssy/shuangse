@@ -363,7 +363,7 @@ export async function getHistoryNumbers(request, env) {
       `SELECT id, issue_number, draw_date, 
               red_1, red_2, red_3, red_4, red_5, red_6, 
               red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
-              blue, jackpot_amount
+              blue
        FROM lottery_history 
        ORDER BY issue_number DESC 
        LIMIT ? OFFSET ?`
