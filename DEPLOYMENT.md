@@ -23,9 +23,6 @@ npx wrangler login
 ```bash
 # 安装项目依赖
 npm install
-
-# 验证项目结构
-node test-functions.js
 ```
 
 ### 3. 创建 D1 数据库
@@ -40,11 +37,8 @@ npx wrangler d1 create shuangse-lottery-db
 ### 4. 执行数据库迁移
 
 ```bash
-# 执行初始数据库结构
-npx wrangler d1 execute shuangse-lottery-db --file=./migrations/001_initial.sql
-
-# 执行会话表迁移
-npx wrangler d1 execute shuangse-lottery-db --file=./migrations/002_add_sessions.sql
+# 执行完整数据库结构迁移
+npx wrangler d1 execute shuangse-lottery-db --file=./migrations/complete_schema.sql
 ```
 
 ### 5. 创建 KV 命名空间（如果不存在）
@@ -94,12 +88,7 @@ bucket = "public"
 binding = "DB"
 database_id = "你的实际数据库ID"
 
-[[kv_namespaces]]
-binding = "__shuangse-workers_sites_assets"
-id = "你的实际KV ID"
-preview_id = "你的预览KV ID"
-
-[[triggers]]
+[triggers]
 crons = ["0 10 * * 1,3,5"]  # 每周一、三、五上午10点执行爬取
 ```
 

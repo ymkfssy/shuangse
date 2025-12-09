@@ -31,8 +31,13 @@ shuangse-lottery/
 │   ├── auth.js            # 认证功能
 │   ├── lottery.js         # 双色球核心功能
 │   └── database.js        # 数据库操作
+├── migrations/            # 数据库迁移文件
+│   └── complete_schema.sql # 完整数据库结构
 ├── wrangler.toml          # Cloudflare Workers配置
+├── wrangler-simple.toml   # 简化版配置文件
 ├── package.json           # 项目依赖
+├── package-lock.json      # 依赖锁定文件
+├── DEPLOYMENT.md          # 部署指南
 └── README.md              # 项目说明
 ```
 
@@ -42,7 +47,7 @@ shuangse-lottery/
 
 - 安装Node.js (v16+)
 - 安装Wrangler CLI: `npm install -g wrangler`
-- 登录Cloudflare: `wrangler login`
+- 登录Cloudflare: `npx wrangler login`
 
 ### 2. 数据库配置
 
