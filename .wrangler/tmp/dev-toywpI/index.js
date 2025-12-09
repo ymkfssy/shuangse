@@ -31587,22 +31587,6 @@ async function generateNewNumbers(request, env) {
   }
 }
 __name(generateNewNumbers, "generateNewNumbers");
-async function generateNewNumber(request, env) {
-  const response = await generateNewNumbers(request, env);
-  if (response.status === 200) {
-    const data = await response.json();
-    if (data.numbers && data.numbers.length === 1) {
-      return new Response(JSON.stringify({
-        success: true,
-        numbers: data.numbers[0],
-        user: data.user,
-        attempts: data.attempts[0]
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
-    }
-  }
-  return response;
-}
-__name(generateNewNumber, "generateNewNumber");
 async function getHistoryNumbers(request, env) {
   try {
     const url = new URL(request.url);
@@ -32320,6 +32304,448 @@ function parseCWLHTML(html) {
   return results;
 }
 __name(parseCWLHTML, "parseCWLHTML");
+async function analyzeHotCold(request, env) {
+  try {
+    const db = await getDB(env);
+    const result = await db.prepare("SELECT red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC LIMIT 100").all();
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: "\u6CA1\u6709\u8DB3\u591F\u7684\u5386\u53F2\u6570\u636E\u8FDB\u884C\u5206\u6790" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    const redCounts = {};
+    const blueCounts = {};
+    for (let i = 1; i <= 33; i++) {
+      redCounts[String(i).padStart(2, "0")] = 0;
+    }
+    for (let i = 1; i <= 16; i++) {
+      blueCounts[String(i).padStart(2, "0")] = 0;
+    }
+    result.results.forEach((row) => {
+      [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6].forEach((red) => {
+        redCounts[red]++;
+      });
+      blueCounts[row.blue]++;
+    });
+    const redLastOccurrence = {};
+    const blueLastOccurrence = {};
+    for (let i = 1; i <= 33; i++) {
+      redLastOccurrence[String(i).padStart(2, "0")] = 101;
+    }
+    for (let i = 1; i <= 16; i++) {
+      blueLastOccurrence[String(i).padStart(2, "0")] = 101;
+    }
+    result.results.forEach((row, index) => {
+      [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6].forEach((red) => {
+        if (redLastOccurrence[red] > index) {
+          redLastOccurrence[red] = index + 1;
+        }
+      });
+      const blue = row.blue;
+      if (blueLastOccurrence[blue] > index) {
+        blueLastOccurrence[blue] = index + 1;
+      }
+    });
+    const redFrequency = Object.entries(redCounts).map(([number, count]) => ({
+      number,
+      count,
+      lastOccurrence: redLastOccurrence[number]
+    })).sort((a, b) => b.count - a.count);
+    redFrequency.forEach((item, index) => {
+      if (index < 10) {
+        item.status = "hot";
+      } else if (index >= redFrequency.length - 10) {
+        item.status = "cold";
+      } else {
+        item.status = "normal";
+      }
+    });
+    const blueFrequency = Object.entries(blueCounts).map(([number, count]) => ({
+      number,
+      count,
+      lastOccurrence: blueLastOccurrence[number]
+    })).sort((a, b) => b.count - a.count);
+    blueFrequency.forEach((item, index) => {
+      if (index < 5) {
+        item.status = "hot";
+      } else if (index >= blueFrequency.length - 5) {
+        item.status = "cold";
+      } else {
+        item.status = "normal";
+      }
+    });
+    const hotRedNumbers = redFrequency.filter((item) => item.status === "hot").map((item) => item.number);
+    const coldRedNumbers = redFrequency.filter((item) => item.status === "cold").map((item) => item.number);
+    const hotBlueNumbers = blueFrequency.filter((item) => item.status === "hot").map((item) => item.number);
+    const coldBlueNumbers = blueFrequency.filter((item) => item.status === "cold").map((item) => item.number);
+    return new Response(JSON.stringify({
+      success: true,
+      redFrequency,
+      blueFrequency,
+      hotRedNumbers,
+      coldRedNumbers,
+      hotBlueNumbers,
+      coldBlueNumbers
+    }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (error) {
+    console.error("\u51B7\u70ED\u5206\u6790\u5931\u8D25:", error);
+    return new Response(JSON.stringify({ success: false, error: "\u5206\u6790\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+}
+__name(analyzeHotCold, "analyzeHotCold");
+async function analyzeParity(request, env) {
+  try {
+    const db = await getDB(env);
+    const result = await db.prepare("SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT 100").all();
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: "\u6CA1\u6709\u8DB3\u591F\u7684\u5386\u53F2\u6570\u636E\u8FDB\u884C\u5206\u6790" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    let parity33 = 0;
+    let parity42 = 0;
+    let parity24 = 0;
+    let parity51 = 0;
+    let parity15 = 0;
+    let parity60 = 0;
+    let parity06 = 0;
+    result.results.forEach((row) => {
+      const reds = [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6];
+      let oddCount = 0;
+      reds.forEach((red) => {
+        const num = parseInt(red);
+        if (num % 2 !== 0) {
+          oddCount++;
+        }
+      });
+      switch (oddCount) {
+        case 3:
+          parity33++;
+          break;
+        case 4:
+          parity42++;
+          break;
+        case 2:
+          parity24++;
+          break;
+        case 5:
+          parity51++;
+          break;
+        case 1:
+          parity15++;
+          break;
+        case 6:
+          parity60++;
+          break;
+        case 0:
+          parity06++;
+          break;
+      }
+    });
+    const total = result.results.length;
+    return new Response(JSON.stringify({
+      success: true,
+      ratio33: (parity33 / total * 100).toFixed(1),
+      ratio42: (parity42 / total * 100).toFixed(1),
+      ratio24: (parity24 / total * 100).toFixed(1),
+      ratio51: (parity51 / total * 100).toFixed(1),
+      ratio15: (parity15 / total * 100).toFixed(1),
+      ratio60: (parity60 / total * 100).toFixed(1),
+      ratio06: (parity06 / total * 100).toFixed(1)
+    }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (error) {
+    console.error("\u5947\u5076\u5206\u6790\u5931\u8D25:", error);
+    return new Response(JSON.stringify({ success: false, error: "\u5206\u6790\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+}
+__name(analyzeParity, "analyzeParity");
+async function analyzeSize(request, env) {
+  try {
+    const db = await getDB(env);
+    const result = await db.prepare("SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT 100").all();
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: "\u6CA1\u6709\u8DB3\u591F\u7684\u5386\u53F2\u6570\u636E\u8FDB\u884C\u5206\u6790" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    let size33 = 0;
+    let size42 = 0;
+    let size24 = 0;
+    let size51 = 0;
+    let size15 = 0;
+    let size60 = 0;
+    let size06 = 0;
+    result.results.forEach((row) => {
+      const reds = [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6];
+      let bigCount = 0;
+      reds.forEach((red) => {
+        const num = parseInt(red);
+        if (num > 16) {
+          bigCount++;
+        }
+      });
+      switch (bigCount) {
+        case 3:
+          size33++;
+          break;
+        case 4:
+          size42++;
+          break;
+        case 2:
+          size24++;
+          break;
+        case 5:
+          size51++;
+          break;
+        case 1:
+          size15++;
+          break;
+        case 6:
+          size60++;
+          break;
+        case 0:
+          size06++;
+          break;
+      }
+    });
+    const total = result.results.length;
+    return new Response(JSON.stringify({
+      success: true,
+      ratio33: (size33 / total * 100).toFixed(1),
+      ratio42: (size42 / total * 100).toFixed(1),
+      ratio24: (size24 / total * 100).toFixed(1),
+      ratio51: (size51 / total * 100).toFixed(1),
+      ratio15: (size15 / total * 100).toFixed(1),
+      ratio60: (size60 / total * 100).toFixed(1),
+      ratio06: (size06 / total * 100).toFixed(1)
+    }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (error) {
+    console.error("\u5927\u5C0F\u5206\u6790\u5931\u8D25:", error);
+    return new Response(JSON.stringify({ success: false, error: "\u5206\u6790\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+}
+__name(analyzeSize, "analyzeSize");
+async function analyzeRange(request, env) {
+  try {
+    const db = await getDB(env);
+    const result = await db.prepare("SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT 100").all();
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: "\u6CA1\u6709\u8DB3\u591F\u7684\u5386\u53F2\u6570\u636E\u8FDB\u884C\u5206\u6790" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    let range222 = 0;
+    let range321 = 0;
+    let range312 = 0;
+    let range231 = 0;
+    let range132 = 0;
+    let range213 = 0;
+    let range123 = 0;
+    let otherRanges = 0;
+    result.results.forEach((row) => {
+      const reds = [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6];
+      let range1 = 0;
+      let range2 = 0;
+      let range3 = 0;
+      reds.forEach((red) => {
+        const num = parseInt(red);
+        if (num <= 11) {
+          range1++;
+        } else if (num <= 22) {
+          range2++;
+        } else {
+          range3++;
+        }
+      });
+      const sorted = [range1, range2, range3].sort((a, b) => b - a);
+      if (range1 === 2 && range2 === 2 && range3 === 2) {
+        range222++;
+      } else if (sorted[0] === 3 && sorted[1] === 2 && sorted[2] === 1) {
+        if (range1 === 3 && range2 === 2 && range3 === 1) {
+          range321++;
+        } else if (range1 === 3 && range2 === 1 && range3 === 2) {
+          range312++;
+        } else if (range1 === 2 && range2 === 3 && range3 === 1) {
+          range231++;
+        } else if (range1 === 1 && range2 === 3 && range3 === 2) {
+          range132++;
+        } else if (range1 === 2 && range2 === 1 && range3 === 3) {
+          range213++;
+        } else if (range1 === 1 && range2 === 2 && range3 === 3) {
+          range123++;
+        } else {
+          otherRanges++;
+        }
+      } else {
+        otherRanges++;
+      }
+    });
+    const total = result.results.length;
+    return new Response(JSON.stringify({
+      success: true,
+      ratio222: (range222 / total * 100).toFixed(1),
+      ratio321: (range321 / total * 100).toFixed(1),
+      ratio312: (range312 / total * 100).toFixed(1),
+      ratio231: (range231 / total * 100).toFixed(1),
+      ratio132: (range132 / total * 100).toFixed(1),
+      ratio213: (range213 / total * 100).toFixed(1),
+      ratio123: (range123 / total * 100).toFixed(1)
+    }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (error) {
+    console.error("\u533A\u95F4\u5206\u6790\u5931\u8D25:", error);
+    return new Response(JSON.stringify({ success: false, error: "\u5206\u6790\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+}
+__name(analyzeRange, "analyzeRange");
+async function analyzeMissing(request, env) {
+  try {
+    const db = await getDB(env);
+    const result = await db.prepare("SELECT issue_number, red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC").all();
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: "\u6CA1\u6709\u8DB3\u591F\u7684\u5386\u53F2\u6570\u636E\u8FDB\u884C\u5206\u6790" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    const totalIssues = result.results.length;
+    const redMissing = {};
+    for (let i = 1; i <= 33; i++) {
+      redMissing[String(i).padStart(2, "0")] = totalIssues;
+    }
+    const blueMissing = {};
+    for (let i = 1; i <= 16; i++) {
+      blueMissing[String(i).padStart(2, "0")] = totalIssues;
+    }
+    result.results.forEach((row, index) => {
+      [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6].forEach((red) => {
+        if (redMissing[red] === totalIssues) {
+          redMissing[red] = index;
+        }
+      });
+      const blue = row.blue;
+      if (blueMissing[blue] === totalIssues) {
+        blueMissing[blue] = index;
+      }
+    });
+    const maxRedMissing = Math.max(...Object.values(redMissing));
+    const maxBlueMissing = Math.max(...Object.values(blueMissing));
+    const avgRedMissing = Object.values(redMissing).reduce((sum, missing) => sum + missing, 0) / Object.keys(redMissing).length;
+    const avgBlueMissing = Object.values(blueMissing).reduce((sum, missing) => sum + missing, 0) / Object.keys(blueMissing).length;
+    const highMissingRedNumbers = Object.entries(redMissing).filter(([_, missing]) => missing > 10).sort((a, b) => b[1] - a[1]).map(([number, _]) => number);
+    const highMissingBlueNumbers = Object.entries(blueMissing).filter(([_, missing]) => missing > 8).sort((a, b) => b[1] - a[1]).map(([number, _]) => number);
+    return new Response(JSON.stringify({
+      success: true,
+      redMissing,
+      blueMissing,
+      maxRedMissing,
+      maxBlueMissing,
+      avgRedMissing,
+      avgBlueMissing,
+      highMissingRedNumbers,
+      highMissingBlueNumbers
+    }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (error) {
+    console.error("\u9057\u6F0F\u5206\u6790\u5931\u8D25:", error);
+    return new Response(JSON.stringify({ success: false, error: "\u5206\u6790\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+}
+__name(analyzeMissing, "analyzeMissing");
+async function generateRecommendation(request, env) {
+  try {
+    const db = await getDB(env);
+    const result = await db.prepare("SELECT red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC LIMIT 100").all();
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: "\u6CA1\u6709\u8DB3\u591F\u7684\u5386\u53F2\u6570\u636E\u751F\u6210\u63A8\u8350" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    const redCounts = {};
+    const blueCounts = {};
+    for (let i = 1; i <= 33; i++) {
+      redCounts[String(i).padStart(2, "0")] = 0;
+    }
+    for (let i = 1; i <= 16; i++) {
+      blueCounts[String(i).padStart(2, "0")] = 0;
+    }
+    result.results.forEach((row) => {
+      [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6].forEach((red) => {
+        redCounts[red]++;
+      });
+      blueCounts[row.blue]++;
+    });
+    const hotRedNumbers = Object.entries(redCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([number, _]) => number);
+    const hotBlueNumbers = Object.entries(blueCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([number, _]) => number);
+    const coldRedNumbers = Object.entries(redCounts).sort((a, b) => a[1] - b[1]).slice(0, 10).map(([number, _]) => number);
+    const recommendations = [];
+    for (let i = 0; i < 5; i++) {
+      const selectedReds = /* @__PURE__ */ new Set();
+      while (selectedReds.size < 3 && hotRedNumbers.length > 0) {
+        const randomIndex = Math.floor(Math.random() * hotRedNumbers.length);
+        selectedReds.add(hotRedNumbers[randomIndex]);
+      }
+      const nonHotReds = Object.keys(redCounts).filter((number) => !hotRedNumbers.includes(number));
+      while (selectedReds.size < 6 && nonHotReds.length > 0) {
+        const randomIndex = Math.floor(Math.random() * nonHotReds.length);
+        selectedReds.add(nonHotReds[randomIndex]);
+      }
+      let selectedBlue;
+      if (hotBlueNumbers.length > 0) {
+        const randomIndex = Math.floor(Math.random() * hotBlueNumbers.length);
+        selectedBlue = hotBlueNumbers[randomIndex];
+      } else {
+        selectedBlue = String(Math.floor(Math.random() * 16) + 1).padStart(2, "0");
+      }
+      const sortedReds = Array.from(selectedReds).map((red) => parseInt(red)).sort((a, b) => a - b).map((num) => String(num).padStart(2, "0"));
+      recommendations.push({
+        red: sortedReds,
+        blue: selectedBlue
+      });
+    }
+    return new Response(JSON.stringify({
+      success: true,
+      recommendations
+    }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (error) {
+    console.error("\u751F\u6210\u63A8\u8350\u53F7\u7801\u5931\u8D25:", error);
+    return new Response(JSON.stringify({ success: false, error: "\u751F\u6210\u63A8\u8350\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+}
+__name(generateRecommendation, "generateRecommendation");
 function generateMockData() {
   const results = [];
   const today = /* @__PURE__ */ new Date();
@@ -32385,6 +32811,18 @@ async function handleRequest(request, env, ctx) {
       }
     } else if (apiPath === "crawl" && request.method === "POST") {
       return crawlHistoryNumbers(request, env);
+    } else if (apiPath === "analysis/hot-cold" && request.method === "GET") {
+      return analyzeHotCold(request, env);
+    } else if (apiPath === "analysis/parity" && request.method === "GET") {
+      return analyzeParity(request, env);
+    } else if (apiPath === "analysis/size" && request.method === "GET") {
+      return analyzeSize(request, env);
+    } else if (apiPath === "analysis/range" && request.method === "GET") {
+      return analyzeRange(request, env);
+    } else if (apiPath === "analysis/missing" && request.method === "GET") {
+      return analyzeMissing(request, env);
+    } else if (apiPath === "analysis/recommendation" && request.method === "GET") {
+      return generateRecommendation(request, env);
     } else if (apiPath === "import" && request.method === "POST") {
       return importHistoryFromExcel(request, env);
     } else if (apiPath === "admin/pending-users" && request.method === "GET") {

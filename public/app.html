@@ -92,6 +92,26 @@
         .btn-success:hover {
             background-color: #73d13d;
         }
+        
+        .nav-links {
+            display: flex;
+            gap: 10px;
+            margin: 0 20px;
+        }
+        
+        .nav-link {
+            padding: 8px 16px;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: background-color 0.3s;
+        }
+        
+        .nav-link:hover,
+        .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
         .history-container {
             margin-top: 30px;
         }
@@ -202,11 +222,103 @@
         .copy-btn:hover {
             background-color: #45a049;
         }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .header {
+                padding: 15px;
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+                text-align: center;
+            }
+            
+            .container {
+                padding: 0 10px;
+                margin: 10px auto;
+            }
+            
+            .card {
+                padding: 20px 15px;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .stat-item {
+                margin: 0;
+            }
+            
+            .number-container {
+                gap: 10px;
+            }
+            
+            .red-ball, .blue-ball {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+            
+            .btn {
+                margin: 5px;
+                padding: 10px 20px;
+                width: 100%;
+                max-width: 200px;
+            }
+            
+            .btn-container {
+                display: flex;
+                justify-content: center;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            
+            .history-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .history-info {
+                text-align: left;
+            }
+            
+            .history-numbers {
+                flex-wrap: wrap;
+            }
+            
+            .small-ball {
+                width: 25px;
+                height: 25px;
+                font-size: 12px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .red-ball, .blue-ball {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+            
+            .number-table th, .number-table td {
+                padding: 8px 5px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>双色球选号系统</h1>
+        <div class="nav-links">
+            <a href="#" class="nav-link active">选号</a>
+            <a href="/analysis.html" class="nav-link">号码分析</a>
+        </div>
         <button class="btn btn-danger" onclick="handleLogout()">退出登录</button>
     </div>
 
@@ -245,8 +357,10 @@
                 <div class="number-container" id="generated-numbers">
                     <!-- 生成的号码将显示在这里 -->
                 </div>
-                <button class="btn btn-success" onclick="generateNumber()">生成新号码</button>
-                <button class="btn" onclick="crawlHistory()">获取最新数据</button>
+                <div class="btn-container">
+                    <button class="btn btn-success" onclick="generateNumber()">生成新号码</button>
+                    <button class="btn" onclick="crawlHistory()">获取最新数据</button>
+                </div>
             </div>
 
             <div class="history-container">

@@ -1,6 +1,6 @@
 // import { getAssetFromKV } from '@cloudflare/kv-asset-handler';  // 暂时注释掉，避免KV依赖
 import { handleLogin, handleRegister, handleLogout, isAuthenticated, getUserFromSession, isAdmin, getPendingUsers, approveUser } from './auth.js';
-import { getHistoryNumbers, generateNewNumber, generateNewNumbers, crawlHistoryNumbers, importHistoryFromExcel, fixDrawDates } from './lottery.js';
+import { getHistoryNumbers, generateNewNumbers, crawlHistoryNumbers, importHistoryFromExcel, fixDrawDates, analyzeHotCold, analyzeParity, analyzeSize, analyzeRange, analyzeMissing, generateRecommendation } from './lottery.js';
 import { initDatabase, getDB } from './database.js';
 
 // 处理HTTP请求
@@ -41,6 +41,18 @@ async function handleRequest(request, env, ctx) {
       }
     } else if (apiPath === 'crawl' && request.method === 'POST') {
       return crawlHistoryNumbers(request, env);
+    } else if (apiPath === 'analysis/hot-cold' && request.method === 'GET') {
+      return analyzeHotCold(request, env);
+    } else if (apiPath === 'analysis/parity' && request.method === 'GET') {
+      return analyzeParity(request, env);
+    } else if (apiPath === 'analysis/size' && request.method === 'GET') {
+      return analyzeSize(request, env);
+    } else if (apiPath === 'analysis/range' && request.method === 'GET') {
+      return analyzeRange(request, env);
+    } else if (apiPath === 'analysis/missing' && request.method === 'GET') {
+      return analyzeMissing(request, env);
+    } else if (apiPath === 'analysis/recommendation' && request.method === 'GET') {
+      return generateRecommendation(request, env);
     } else if (apiPath === 'import' && request.method === 'POST') {
       return importHistoryFromExcel(request, env);
     } else if (apiPath === 'admin/pending-users' && request.method === 'GET') {

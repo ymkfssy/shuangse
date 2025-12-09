@@ -1401,6 +1401,592 @@ function parseIdcdData(data) {
 
 // 不再使用的第三方API解析函数已删除
 
+// 号码分析功能 - 冷热分析
+export async function analyzeHotCold(request, env) {
+  try {
+    const db = await getDB(env);
+    
+    // 获取所有历史数据
+    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC LIMIT 100').all();
+    
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 统计红球出现次数
+    const redCounts = {};
+    const blueCounts = {};
+    
+    for (let i = 1; i <= 33; i++) {
+      redCounts[String(i).padStart(2, '0')] = 0;
+    }
+    
+    for (let i = 1; i <= 16; i++) {
+      blueCounts[String(i).padStart(2, '0')] = 0;
+    }
+    
+    // 统计最近100期的出现次数
+    result.results.forEach(row => {
+      // 统计红球
+      [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6].forEach(red => {
+        redCounts[red]++;
+      });
+      
+      // 统计蓝球
+      blueCounts[row.blue]++;
+    });
+    
+    // 计算遗漏值（最近出现的期数）
+    const redLastOccurrence = {};
+    const blueLastOccurrence = {};
+    
+    // 初始化所有号码的遗漏值为最大
+    for (let i = 1; i <= 33; i++) {
+      redLastOccurrence[String(i).padStart(2, '0')] = 101; // 比最大期数大1
+    }
+    
+    for (let i = 1; i <= 16; i++) {
+      blueLastOccurrence[String(i).padStart(2, '0')] = 101; // 比最大期数大1
+    }
+    
+    // 计算每个号码的最近出现期数
+    result.results.forEach((row, index) => {
+      // 统计红球
+      [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6].forEach(red => {
+        if (redLastOccurrence[red] > index) {
+          redLastOccurrence[red] = index + 1; // 第N期，从1开始计数
+        }
+      });
+      
+      // 统计蓝球
+      const blue = row.blue;
+      if (blueLastOccurrence[blue] > index) {
+        blueLastOccurrence[blue] = index + 1; // 第N期，从1开始计数
+      }
+    });
+    
+    // 计算冷热状态（红球：前10名为热号，后10名为冷号）
+    const redFrequency = Object.entries(redCounts).map(([number, count]) => ({
+      number,
+      count,
+      lastOccurrence: redLastOccurrence[number]
+    })).sort((a, b) => b.count - a.count);
+    
+    // 标记冷热状态
+    redFrequency.forEach((item, index) => {
+      if (index < 10) {
+        item.status = 'hot'; // 热号
+      } else if (index >= redFrequency.length - 10) {
+        item.status = 'cold'; // 冷号
+      } else {
+        item.status = 'normal'; // 温号
+      }
+    });
+    
+    // 计算蓝球冷热状态（前5名为热号，后5名为冷号）
+    const blueFrequency = Object.entries(blueCounts).map(([number, count]) => ({
+      number,
+      count,
+      lastOccurrence: blueLastOccurrence[number]
+    })).sort((a, b) => b.count - a.count);
+    
+    // 标记蓝球冷热状态
+    blueFrequency.forEach((item, index) => {
+      if (index < 5) {
+        item.status = 'hot'; // 热号
+      } else if (index >= blueFrequency.length - 5) {
+        item.status = 'cold'; // 冷号
+      } else {
+        item.status = 'normal'; // 温号
+      }
+    });
+    
+    // 获取热号和冷号列表
+    const hotRedNumbers = redFrequency.filter(item => item.status === 'hot').map(item => item.number);
+    const coldRedNumbers = redFrequency.filter(item => item.status === 'cold').map(item => item.number);
+    const hotBlueNumbers = blueFrequency.filter(item => item.status === 'hot').map(item => item.number);
+    const coldBlueNumbers = blueFrequency.filter(item => item.status === 'cold').map(item => item.number);
+    
+    return new Response(JSON.stringify({
+      success: true,
+      redFrequency,
+      blueFrequency,
+      hotRedNumbers,
+      coldRedNumbers,
+      hotBlueNumbers,
+      coldBlueNumbers
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('冷热分析失败:', error);
+    return new Response(JSON.stringify({ success: false, error: '分析失败，请稍后重试' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// 号码分析功能 - 奇偶分析
+export async function analyzeParity(request, env) {
+  try {
+    const db = await getDB(env);
+    
+    // 获取最近100期的数据
+    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT 100').all();
+    
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 统计奇偶分布
+    let parity33 = 0; // 3奇3偶
+    let parity42 = 0; // 4奇2偶
+    let parity24 = 0; // 2奇4偶
+    let parity51 = 0; // 5奇1偶
+    let parity15 = 0; // 1奇5偶
+    let parity60 = 0; // 6奇0偶
+    let parity06 = 0; // 0奇6偶
+    
+    result.results.forEach(row => {
+      const reds = [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6];
+      let oddCount = 0;
+      
+      reds.forEach(red => {
+        const num = parseInt(red);
+        if (num % 2 !== 0) {
+          oddCount++;
+        }
+      });
+      
+      switch (oddCount) {
+        case 3:
+          parity33++;
+          break;
+        case 4:
+          parity42++;
+          break;
+        case 2:
+          parity24++;
+          break;
+        case 5:
+          parity51++;
+          break;
+        case 1:
+          parity15++;
+          break;
+        case 6:
+          parity60++;
+          break;
+        case 0:
+          parity06++;
+          break;
+      }
+    });
+    
+    const total = result.results.length;
+    
+    return new Response(JSON.stringify({
+      success: true,
+      ratio33: ((parity33 / total) * 100).toFixed(1),
+      ratio42: ((parity42 / total) * 100).toFixed(1),
+      ratio24: ((parity24 / total) * 100).toFixed(1),
+      ratio51: ((parity51 / total) * 100).toFixed(1),
+      ratio15: ((parity15 / total) * 100).toFixed(1),
+      ratio60: ((parity60 / total) * 100).toFixed(1),
+      ratio06: ((parity06 / total) * 100).toFixed(1)
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('奇偶分析失败:', error);
+    return new Response(JSON.stringify({ success: false, error: '分析失败，请稍后重试' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// 号码分析功能 - 大小分析
+export async function analyzeSize(request, env) {
+  try {
+    const db = await getDB(env);
+    
+    // 获取最近100期的数据
+    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT 100').all();
+    
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 统计大小分布（红球1-16为小，17-33为大）
+    let size33 = 0; // 3大3小
+    let size42 = 0; // 4大2小
+    let size24 = 0; // 2大4小
+    let size51 = 0; // 5大1小
+    let size15 = 0; // 1大5小
+    let size60 = 0; // 6大0小
+    let size06 = 0; // 0大6小
+    
+    result.results.forEach(row => {
+      const reds = [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6];
+      let bigCount = 0;
+      
+      reds.forEach(red => {
+        const num = parseInt(red);
+        if (num > 16) {
+          bigCount++;
+        }
+      });
+      
+      switch (bigCount) {
+        case 3:
+          size33++;
+          break;
+        case 4:
+          size42++;
+          break;
+        case 2:
+          size24++;
+          break;
+        case 5:
+          size51++;
+          break;
+        case 1:
+          size15++;
+          break;
+        case 6:
+          size60++;
+          break;
+        case 0:
+          size06++;
+          break;
+      }
+    });
+    
+    const total = result.results.length;
+    
+    return new Response(JSON.stringify({
+      success: true,
+      ratio33: ((size33 / total) * 100).toFixed(1),
+      ratio42: ((size42 / total) * 100).toFixed(1),
+      ratio24: ((size24 / total) * 100).toFixed(1),
+      ratio51: ((size51 / total) * 100).toFixed(1),
+      ratio15: ((size15 / total) * 100).toFixed(1),
+      ratio60: ((size60 / total) * 100).toFixed(1),
+      ratio06: ((size06 / total) * 100).toFixed(1)
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('大小分析失败:', error);
+    return new Response(JSON.stringify({ success: false, error: '分析失败，请稍后重试' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// 号码分析功能 - 区间分析
+export async function analyzeRange(request, env) {
+  try {
+    const db = await getDB(env);
+    
+    // 获取最近100期的数据
+    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT 100').all();
+    
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 统计区间分布（红球1-11为区间1，12-22为区间2，23-33为区间3）
+    let range222 = 0; // 2-2-2分布
+    let range321 = 0; // 3-2-1分布
+    let range312 = 0; // 3-1-2分布
+    let range231 = 0; // 2-3-1分布
+    let range132 = 0; // 1-3-2分布
+    let range213 = 0; // 2-1-3分布
+    let range123 = 0; // 1-2-3分布
+    let otherRanges = 0; // 其他分布
+    
+    result.results.forEach(row => {
+      const reds = [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6];
+      let range1 = 0;
+      let range2 = 0;
+      let range3 = 0;
+      
+      reds.forEach(red => {
+        const num = parseInt(red);
+        if (num <= 11) {
+          range1++;
+        } else if (num <= 22) {
+          range2++;
+        } else {
+          range3++;
+        }
+      });
+      
+      // 排序后比较分布
+      const sorted = [range1, range2, range3].sort((a, b) => b - a);
+      
+      if (range1 === 2 && range2 === 2 && range3 === 2) {
+        range222++;
+      } else if (sorted[0] === 3 && sorted[1] === 2 && sorted[2] === 1) {
+        // 判断具体是哪种3-2-1分布
+        if (range1 === 3 && range2 === 2 && range3 === 1) {
+          range321++;
+        } else if (range1 === 3 && range2 === 1 && range3 === 2) {
+          range312++;
+        } else if (range1 === 2 && range2 === 3 && range3 === 1) {
+          range231++;
+        } else if (range1 === 1 && range2 === 3 && range3 === 2) {
+          range132++;
+        } else if (range1 === 2 && range2 === 1 && range3 === 3) {
+          range213++;
+        } else if (range1 === 1 && range2 === 2 && range3 === 3) {
+          range123++;
+        } else {
+          otherRanges++;
+        }
+      } else {
+        otherRanges++;
+      }
+    });
+    
+    const total = result.results.length;
+    
+    return new Response(JSON.stringify({
+      success: true,
+      ratio222: ((range222 / total) * 100).toFixed(1),
+      ratio321: ((range321 / total) * 100).toFixed(1),
+      ratio312: ((range312 / total) * 100).toFixed(1),
+      ratio231: ((range231 / total) * 100).toFixed(1),
+      ratio132: ((range132 / total) * 100).toFixed(1),
+      ratio213: ((range213 / total) * 100).toFixed(1),
+      ratio123: ((range123 / total) * 100).toFixed(1)
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('区间分析失败:', error);
+    return new Response(JSON.stringify({ success: false, error: '分析失败，请稍后重试' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// 号码分析功能 - 遗漏分析
+export async function analyzeMissing(request, env) {
+  try {
+    const db = await getDB(env);
+    
+    // 获取所有历史数据
+    const result = await db.prepare('SELECT issue_number, red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC').all();
+    
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const totalIssues = result.results.length;
+    
+    // 计算红球遗漏值
+    const redMissing = {};
+    for (let i = 1; i <= 33; i++) {
+      redMissing[String(i).padStart(2, '0')] = totalIssues; // 默认遗漏值为总期数
+    }
+    
+    // 计算蓝球遗漏值
+    const blueMissing = {};
+    for (let i = 1; i <= 16; i++) {
+      blueMissing[String(i).padStart(2, '0')] = totalIssues; // 默认遗漏值为总期数
+    }
+    
+    // 遍历所有期数，更新遗漏值
+    result.results.forEach((row, index) => {
+      // 红球遗漏值
+      [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6].forEach(red => {
+        if (redMissing[red] === totalIssues) {
+          redMissing[red] = index;
+        }
+      });
+      
+      // 蓝球遗漏值
+      const blue = row.blue;
+      if (blueMissing[blue] === totalIssues) {
+        blueMissing[blue] = index;
+      }
+    });
+    
+    // 计算最大遗漏值
+    const maxRedMissing = Math.max(...Object.values(redMissing));
+    const maxBlueMissing = Math.max(...Object.values(blueMissing));
+    
+    // 计算平均遗漏值
+    const avgRedMissing = Object.values(redMissing).reduce((sum, missing) => sum + missing, 0) / Object.keys(redMissing).length;
+    const avgBlueMissing = Object.values(blueMissing).reduce((sum, missing) => sum + missing, 0) / Object.keys(blueMissing).length;
+    
+    // 获取高遗漏值的红球（遗漏值大于10）
+    const highMissingRedNumbers = Object.entries(redMissing)
+      .filter(([_, missing]) => missing > 10)
+      .sort((a, b) => b[1] - a[1])
+      .map(([number, _]) => number);
+    
+    // 获取高遗漏值的蓝球（遗漏值大于8）
+    const highMissingBlueNumbers = Object.entries(blueMissing)
+      .filter(([_, missing]) => missing > 8)
+      .sort((a, b) => b[1] - a[1])
+      .map(([number, _]) => number);
+    
+    return new Response(JSON.stringify({
+      success: true,
+      redMissing,
+      blueMissing,
+      maxRedMissing,
+      maxBlueMissing,
+      avgRedMissing,
+      avgBlueMissing,
+      highMissingRedNumbers,
+      highMissingBlueNumbers
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('遗漏分析失败:', error);
+    return new Response(JSON.stringify({ success: false, error: '分析失败，请稍后重试' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// 智能号码推荐
+export async function generateRecommendation(request, env) {
+  try {
+    const db = await getDB(env);
+    
+    // 获取最近100期的数据用于分析
+    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC LIMIT 100').all();
+    
+    if (!result.results || result.results.length === 0) {
+      return new Response(JSON.stringify({ error: '没有足够的历史数据生成推荐' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 1. 获取热号和冷号
+    const redCounts = {};
+    const blueCounts = {};
+    
+    for (let i = 1; i <= 33; i++) {
+      redCounts[String(i).padStart(2, '0')] = 0;
+    }
+    
+    for (let i = 1; i <= 16; i++) {
+      blueCounts[String(i).padStart(2, '0')] = 0;
+    }
+    
+    result.results.forEach(row => {
+      // 统计红球
+      [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6].forEach(red => {
+        redCounts[red]++;
+      });
+      
+      // 统计蓝球
+      blueCounts[row.blue]++;
+    });
+    
+    // 获取热红球（前10名）和热蓝球（前5名）
+    const hotRedNumbers = Object.entries(redCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([number, _]) => number);
+    
+    const hotBlueNumbers = Object.entries(blueCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([number, _]) => number);
+    
+    // 获取冷红球（后10名）和冷蓝球（后5名）
+    const coldRedNumbers = Object.entries(redCounts)
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, 10)
+      .map(([number, _]) => number);
+    
+    // 2. 生成推荐号码组合
+    const recommendations = [];
+    
+    // 生成5组推荐号码
+    for (let i = 0; i < 5; i++) {
+      // 选择3个热红球和3个温红球（避免全热或全冷）
+      const selectedReds = new Set();
+      
+      // 随机选择3个热红球
+      while (selectedReds.size < 3 && hotRedNumbers.length > 0) {
+        const randomIndex = Math.floor(Math.random() * hotRedNumbers.length);
+        selectedReds.add(hotRedNumbers[randomIndex]);
+      }
+      
+      // 随机选择3个非热红球（温球或冷球）
+      const nonHotReds = Object.keys(redCounts).filter(number => !hotRedNumbers.includes(number));
+      while (selectedReds.size < 6 && nonHotReds.length > 0) {
+        const randomIndex = Math.floor(Math.random() * nonHotReds.length);
+        selectedReds.add(nonHotReds[randomIndex]);
+      }
+      
+      // 随机选择1个热蓝球
+      let selectedBlue;
+      if (hotBlueNumbers.length > 0) {
+        const randomIndex = Math.floor(Math.random() * hotBlueNumbers.length);
+        selectedBlue = hotBlueNumbers[randomIndex];
+      } else {
+        // 如果没有热蓝球，随机选择一个蓝球
+        selectedBlue = String(Math.floor(Math.random() * 16) + 1).padStart(2, '0');
+      }
+      
+      // 将红球转换为数字并排序
+      const sortedReds = Array.from(selectedReds)
+        .map(red => parseInt(red))
+        .sort((a, b) => a - b)
+        .map(num => String(num).padStart(2, '0'));
+      
+      recommendations.push({
+        red: sortedReds,
+        blue: selectedBlue
+      });
+    }
+    
+    return new Response(JSON.stringify({
+      success: true,
+      recommendations
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('生成推荐号码失败:', error);
+    return new Response(JSON.stringify({ success: false, error: '生成推荐失败，请稍后重试' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 // 生成模拟测试数据
 function generateMockData() {
   const results = [];
