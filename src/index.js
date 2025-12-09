@@ -1,5 +1,5 @@
 // import { getAssetFromKV } from '@cloudflare/kv-asset-handler';  // 暂时注释掉，避免KV依赖
-import { handleLogin, handleRegister, handleLogout, isAuthenticated, getUserFromSession } from './auth.js';
+import { handleLogin, handleRegister, handleLogout, isAuthenticated, getUserFromSession, isAdmin, getPendingUsers, approveUser } from './auth.js';
 import { getHistoryNumbers, generateNewNumber, generateNewNumbers, crawlHistoryNumbers, importHistoryFromExcel } from './lottery.js';
 import { initDatabase, getDB } from './database.js';
 
@@ -43,6 +43,10 @@ async function handleRequest(request, env, ctx) {
       return crawlHistoryNumbers(request, env);
     } else if (apiPath === 'import' && request.method === 'POST') {
       return importHistoryFromExcel(request, env);
+    } else if (apiPath === 'admin/pending-users' && request.method === 'GET') {
+      return getPendingUsers(request, env);
+    } else if (apiPath === 'admin/approve-user' && request.method === 'POST') {
+      return approveUser(request, env);
     }
     
     return new Response('Not Found', { status: 404 });

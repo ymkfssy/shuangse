@@ -172,6 +172,36 @@
             color: #666;
             margin-top: 10px;
         }
+        /* 表格样式 */
+        .number-table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .number-table th {
+            background-color: #f0f0f0;
+            padding: 10px;
+            font-weight: bold;
+            border: 1px solid #ddd;
+        }
+        .number-table td {
+            padding: 15px;
+            border: 1px solid #ddd;
+        }
+        /* 复制按钮样式 */
+        .copy-btn {
+            margin-top: 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .copy-btn:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
@@ -181,6 +211,14 @@
     </div>
 
     <div class="container">
+        <!-- 管理员面板 -->
+        <div id="admin-panel" class="card" style="display: none;">
+            <h2>用户管理</h2>
+            <div id="pending-users">
+                <h3>待批准用户</h3>
+                <div id="pending-users-list"></div>
+            </div>
+        </div>
         <div class="card">
             <div class="stats">
                 <div class="stat-item">
@@ -384,12 +422,93 @@
             }
         }
 
+        // 检查当前用户是否为管理员
+        async function checkAdminStatus() {
+            try {
+                // 从登录成功后存储的用户信息中检查
+                const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+                if (userInfo && userInfo.is_admin) {
+                    // 显示管理员面板
+                    document.getElementById('admin-panel').style.display = 'block';
+                    // 加载待批准用户
+                    loadPendingUsers();
+                }
+            } catch (error) {
+                console.error('检查管理员状态失败:', error);
+            }
+        }
+        
+        // 加载待批准用户列表
+        async function loadPendingUsers() {
+            try {
+                const response = await fetch('/api/admin/pending-users');
+                const result = await response.json();
+                
+                if (response.ok) {
+                    const pendingUsersList = document.getElementById('pending-users-list');
+                    if (result.users.length === 0) {
+                        pendingUsersList.innerHTML = '<p>暂无待批准用户</p>';
+                        return;
+                    }
+                    
+                    pendingUsersList.innerHTML = '<table class="number-table"><tr><th>用户名</th><th>注册时间</th><th>操作</th></tr>';
+                    result.users.forEach(user => {
+                        const registerTime = new Date(user.created_at).toLocaleString('zh-CN');
+                        pendingUsersList.innerHTML += `
+                            <tr>
+                                <td>${user.username}</td>
+                                <td>${registerTime}</td>
+                                <td><button class="btn btn-success" onclick="approveUser(${user.id})">批准</button></td>
+                            </tr>
+                        `;
+                    });
+                    pendingUsersList.innerHTML += '</table>';
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('加载待批准用户失败', 'error');
+            }
+        }
+        
+        // 批准用户
+        async function approveUser(userId) {
+            try {
+                const response = await fetch('/api/admin/approve-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userId })
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(result.message, 'success');
+                    loadPendingUsers(); // 重新加载待批准用户列表
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('批准用户失败', 'error');
+            }
+        }
+        
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             getHistoryNumbers();
             // 生成一个初始号码
             generateNumber();
+            // 检查管理员状态
+            checkAdminStatus();
         });
+        
+        // 监听登录事件，在登录成功后检查管理员状态
+        // 注意：需要在登录成功时调用此函数并传入用户信息
+        function onLoginSuccess(userInfo) {
+            localStorage.setItem('userInfo', JSON.stringify(userInfo));
+            checkAdminStatus();
+        }
     </script>
 </body>
 </html>

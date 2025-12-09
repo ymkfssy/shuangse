@@ -163,6 +163,8 @@
                 
                 if (response.ok) {
                     showMessage(result.message, 'success');
+                    // 存储用户信息到localStorage
+                    localStorage.setItem('userInfo', JSON.stringify(result.user));
                     setTimeout(() => {
                         window.location.href = '/app.html';
                     }, 1000);
