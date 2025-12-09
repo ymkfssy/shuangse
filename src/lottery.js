@@ -47,7 +47,17 @@ export async function importHistoryFromExcel(request, env) {
     let importedCount = 0;
     let skippedCount = 0;
     
-    // 不再使用batch方法，改为直接执行SQL语句（Cloudflare Workers D1的batch API与我们的用法不兼容）
+    // 批量导入优化：先收集所有有效的数据，然后批量执行插入
+    const validRows = [];
+    const existingIssues = new Set();
+    
+    // 先获取所有已存在的期号，避免重复检查
+    const existingIssuesResult = await db.prepare('SELECT issue_number FROM lottery_history').all();
+    for (const row of existingIssuesResult.results) {
+      existingIssues.add(row.issue_number);
+    }
+    
+    // 预处理数据
     for (const row of jsonData) {
       // 检查必要字段
       if (!row.期号 || !row.日期 || !row.红球1 || !row.红球2 || !row.红球3 || !row.红球4 || !row.红球5 || !row.红球6 || !row.蓝球) {
@@ -55,10 +65,35 @@ export async function importHistoryFromExcel(request, env) {
         continue;
       }
       
-      // 解析日期
+      // 处理期号：确保是7位数字，没有小数点
+      let issueNumber = String(row.期号);
+      // 移除可能的小数点和小数部分
+      issueNumber = issueNumber.replace(/\..*/, '');
+      // 确保是7位数字
+      if (!/^\d{7}$/.test(issueNumber)) {
+        skippedCount++;
+        continue;
+      }
+      
+      // 检查是否已存在
+      if (existingIssues.has(issueNumber)) {
+        skippedCount++;
+        continue;
+      }
+      
+      // 解析日期：确保只保留日期部分
       let drawDate;
       try {
-        drawDate = new Date(row.日期);
+        // 如果是字符串，尝试直接解析
+        if (typeof row.日期 === 'string') {
+          // 移除时间部分（如果有）
+          const datePart = row.日期.split(' ')[0];
+          drawDate = new Date(datePart);
+        } else {
+          // 如果是数字（Excel日期格式），直接转换
+          drawDate = new Date(row.日期);
+        }
+        
         if (isNaN(drawDate.getTime())) {
           skippedCount++;
           continue;
@@ -68,47 +103,71 @@ export async function importHistoryFromExcel(request, env) {
         continue;
       }
       
-      // 提取红球数据
-      const redBalls = [row.红球1, row.红球2, row.红球3, row.红球4, row.红球5, row.红球6];
-      const sortedReds = [...redBalls].sort((a, b) => a - b);
+      // 格式化数字为两位数文本的辅助函数
+      const formatBall = (num) => {
+        // 确保是数字类型
+        const number = typeof num === 'string' ? parseInt(num) : num;
+        // 格式化为两位数字符串
+        return String(number).padStart(2, '0');
+      };
       
-      // 提取红球出球顺序（优先使用红球顺序字段，如果没有则使用红球1-6的顺序）
+      // 提取红球数据并格式化为两位数文本
+      const redBalls = [row.红球1, row.红球2, row.红球3, row.红球4, row.红球5, row.红球6];
+      // 转换为数字后排序，再格式化为两位数文本
+      const sortedReds = [...redBalls]
+        .map(ball => typeof ball === 'string' ? parseInt(ball) : ball)
+        .sort((a, b) => a - b)
+        .map(formatBall);
+      
+      // 提取红球出球顺序并格式化为两位数文本（优先使用红球顺序字段，如果没有则使用红球1-6的顺序）
       const redBallsOrder = [];
       for (let i = 1; i <= 6; i++) {
         const orderKey = `红球顺序${i}`;
+        let ball;
         if (row[orderKey] !== undefined) {
-          redBallsOrder.push(row[orderKey]);
+          ball = row[orderKey];
         } else {
-          redBallsOrder.push(redBalls[i-1]);
+          ball = redBalls[i-1];
+        }
+        redBallsOrder.push(formatBall(ball));
+      }
+      
+      // 添加到有效数据列表
+      validRows.push({
+        issueNumber,
+        drawDate: drawDate.toISOString().split('T')[0], // 只保留日期部分
+        sortedReds,
+        redBallsOrder,
+        blue: formatBall(row.蓝球)
+      });
+    }
+    
+    // 优化插入：直接插入有效数据，D1不支持传统SQL事务，所以我们使用try-catch确保数据一致性
+    if (validRows.length > 0) {
+      for (const row of validRows) {
+        try {
+          // 插入数据
+          await db.prepare(
+            `INSERT INTO lottery_history (
+              issue_number, draw_date, 
+              red_1, red_2, red_3, red_4, red_5, red_6, 
+              red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
+              blue
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ).bind(
+            row.issueNumber, row.drawDate,
+            row.sortedReds[0], row.sortedReds[1], row.sortedReds[2], row.sortedReds[3], row.sortedReds[4], row.sortedReds[5],
+            row.redBallsOrder[0], row.redBallsOrder[1], row.redBallsOrder[2], row.redBallsOrder[3], row.redBallsOrder[4], row.redBallsOrder[5],
+            row.blue
+          ).run();
+          
+          importedCount++;
+        } catch (error) {
+          console.error(`插入数据失败（期号: ${row.issueNumber}）:`, error);
+          // 继续处理下一条数据
+          continue;
         }
       }
-      
-      // 检查是否已存在
-      const existing = await db.prepare(
-        'SELECT id FROM lottery_history WHERE issue_number = ?'
-      ).bind(row.期号).first();
-      
-      if (existing) {
-        skippedCount++;
-        continue;
-      }
-      
-      // 插入数据
-      await db.prepare(
-        `INSERT INTO lottery_history (
-          issue_number, draw_date, 
-          red_1, red_2, red_3, red_4, red_5, red_6, 
-          red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
-          blue
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(
-        row.期号, drawDate.toISOString(),
-        sortedReds[0], sortedReds[1], sortedReds[2], sortedReds[3], sortedReds[4], sortedReds[5],
-        redBallsOrder[0], redBallsOrder[1], redBallsOrder[2], redBallsOrder[3], redBallsOrder[4], redBallsOrder[5],
-        row.蓝球
-      ).run();
-      
-      importedCount++;
     }
     
     return new Response(JSON.stringify({
@@ -131,6 +190,11 @@ export async function importHistoryFromExcel(request, env) {
 // 随机User-Agent列表，避免被反爬虫机制识别
 
 
+// 格式化数字为两位数文本的辅助函数
+function formatBall(num) {
+  return String(num).padStart(2, '0');
+}
+
 // 生成6个不重复的红球号码（1-33）
 function generateRedNumbers() {
   const redNumbers = [];
@@ -140,12 +204,15 @@ function generateRedNumbers() {
       redNumbers.push(num);
     }
   }
-  return redNumbers.sort((a, b) => a - b);
+  // 排序后格式化为两位数文本
+  return redNumbers.sort((a, b) => a - b).map(formatBall);
 }
 
 // 生成1个蓝球号码（1-16）
 function generateBlueNumber() {
-  return Math.floor(Math.random() * 16) + 1;
+  const num = Math.floor(Math.random() * 16) + 1;
+  // 格式化为两位数文本
+  return formatBall(num);
 }
 
 // 检查号码是否已经存在于历史记录中
@@ -569,14 +636,15 @@ function parseSportteryHTML(html) {
       if (!redMatch) continue;
       const redBalls = redMatch[1].match(/<span[^>]*>(\d{2})<\/span>/g);
       if (!redBalls || redBalls.length !== 6) continue;
-      const red = redBalls.map(ball => parseInt(ball.match(/<span[^>]*>(\d{2})<\/span>/)[1])).sort((a, b) => a - b);
+      // 保持文本格式，直接提取两位数文本
+      const red = redBalls.map(ball => ball.match(/<span[^>]*>(\d{2})<\/span>/)[1]).sort((a, b) => parseInt(a) - parseInt(b));
       
       // 提取蓝球
       const blueMatch = row.match(/<td[^>]*class="td_ball_blue"[^>]*>([\s\S]*?)<\/td>/);
       if (!blueMatch) continue;
       const blueBall = blueMatch[1].match(/<span[^>]*>(\d{2})<\/span>/);
       if (!blueBall) continue;
-      const blue = parseInt(blueBall[1]);
+      const blue = blueBall[1]; // 保持文本格式，确保两位数
       
       // 添加到结果
       results.push({
@@ -671,7 +739,8 @@ function parse500LotteryHTML(html) {
         console.log('未找到红球或红球数量不足');
         continue;
       }
-      const red = redMatch.slice(0, 6).map(ball => parseInt(ball.match(/<td[^>]*class="t_cfont2"[^>]*>(\d{2})<\/td>/)[1])).sort((a, b) => a - b);
+      // 保持文本格式，直接提取两位数文本
+      const red = redMatch.slice(0, 6).map(ball => ball.match(/<td[^>]*class="t_cfont2"[^>]*>(\d{2})<\/td>/)[1]).sort((a, b) => parseInt(a) - parseInt(b));
       
       // 提取蓝球
       const blueMatch = row.match(/<td[^>]*class="t_cfont4"[^>]*>(\d{2})<\/td>/);
@@ -679,7 +748,7 @@ function parse500LotteryHTML(html) {
         console.log('未找到蓝球');
         continue;
       }
-      const blue = parseInt(blueMatch[1]);
+      const blue = blueMatch[1]; // 保持文本格式，确保两位数
       
       // 提取日期
       const dateMatch = row.match(/<td[^>]*>(\d{4}-\d{2}-\d{2})<\/td>/g);
@@ -792,12 +861,13 @@ function parseZcwHTML(html) {
       // 提取红球
       const redMatch = row.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/g);
       if (!redMatch || redMatch.length !== 6) continue;
-      const red = redMatch.map(ball => parseInt(ball.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/)[1])).sort((a, b) => a - b);
+      // 保持文本格式，直接提取两位数文本
+      const red = redMatch.map(ball => ball.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/)[1]).sort((a, b) => parseInt(a) - parseInt(b));
       
       // 提取蓝球
       const blueMatch = row.match(/<td[^>]*class="blue"[^>]*>(\d{2})<\/td>/);
       if (!blueMatch) continue;
-      const blue = parseInt(blueMatch[1]);
+      const blue = blueMatch[1]; // 保持文本格式，确保两位数
       
       // 添加到结果
       results.push({
@@ -966,7 +1036,9 @@ function parseLecaiHTML(html) {
         let redBallMatch;
         
         while ((redBallMatch = redBallPattern.exec(row)) !== null) {
-          redBalls.push(parseInt(redBallMatch[1]));
+          // 格式化为两位数文本
+          const ball = String(parseInt(redBallMatch[1])).padStart(2, '0');
+          redBalls.push(ball);
           if (redBalls.length === 6) break;
         }
         
@@ -976,10 +1048,11 @@ function parseLecaiHTML(html) {
         const blueBallMatch = row.match(/<td[^>]*class="[^>]*blue[^>]*"[^>]*>([\d]{1,2})<\/td>/);
         if (!blueBallMatch) continue;
         
-        const blue = parseInt(blueBallMatch[1]);
+        // 格式化为两位数文本
+        const blue = String(parseInt(blueBallMatch[1])).padStart(2, '0');
         
         // 排序后的红球
-        const sortedReds = [...redBalls].sort((a, b) => a - b);
+        const sortedReds = [...redBalls].sort((a, b) => parseInt(a) - parseInt(b));
         
         results.push({
           issue,
@@ -1129,7 +1202,8 @@ function parseCWLHTML(html) {
       if (redMatches.length !== 6) continue;
       
       const redOrder = redMatches.map(match => match[1]);
-      const red = [...redOrder].sort((a, b) => a - b);
+      // 使用数值比较进行排序，确保正确的数字排序
+      const red = [...redOrder].sort((a, b) => parseInt(a) - parseInt(b));
       
       // 提取蓝球
       const blueRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*blue[^"]*"[^>]*>([\d]{2})<\/td>/;

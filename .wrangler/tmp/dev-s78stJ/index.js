@@ -31165,14 +31165,35 @@ async function importHistoryFromExcel(request, env) {
     const db = await getDB(env);
     let importedCount = 0;
     let skippedCount = 0;
+    const validRows = [];
+    const existingIssues = /* @__PURE__ */ new Set();
+    const existingIssuesResult = await db.prepare("SELECT issue_number FROM lottery_history").all();
+    for (const row of existingIssuesResult.results) {
+      existingIssues.add(row.issue_number);
+    }
     for (const row of jsonData) {
       if (!row.\u671F\u53F7 || !row.\u65E5\u671F || !row.\u7EA2\u74031 || !row.\u7EA2\u74032 || !row.\u7EA2\u74033 || !row.\u7EA2\u74034 || !row.\u7EA2\u74035 || !row.\u7EA2\u74036 || !row.\u84DD\u7403) {
         skippedCount++;
         continue;
       }
+      let issueNumber = String(row.\u671F\u53F7);
+      issueNumber = issueNumber.replace(/\..*/, "");
+      if (!/^\d{7}$/.test(issueNumber)) {
+        skippedCount++;
+        continue;
+      }
+      if (existingIssues.has(issueNumber)) {
+        skippedCount++;
+        continue;
+      }
       let drawDate;
       try {
-        drawDate = new Date(row.\u65E5\u671F);
+        if (typeof row.\u65E5\u671F === "string") {
+          const datePart = row.\u65E5\u671F.split(" ")[0];
+          drawDate = new Date(datePart);
+        } else {
+          drawDate = new Date(row.\u65E5\u671F);
+        }
         if (isNaN(drawDate.getTime())) {
           skippedCount++;
           continue;
@@ -31181,49 +31202,65 @@ async function importHistoryFromExcel(request, env) {
         skippedCount++;
         continue;
       }
+      const formatBall2 = /* @__PURE__ */ __name((num) => {
+        const number = typeof num === "string" ? parseInt(num) : num;
+        return String(number).padStart(2, "0");
+      }, "formatBall");
       const redBalls = [row.\u7EA2\u74031, row.\u7EA2\u74032, row.\u7EA2\u74033, row.\u7EA2\u74034, row.\u7EA2\u74035, row.\u7EA2\u74036];
-      const sortedReds = [...redBalls].sort((a, b) => a - b);
+      const sortedReds = [...redBalls].map((ball) => typeof ball === "string" ? parseInt(ball) : ball).sort((a, b) => a - b).map(formatBall2);
       const redBallsOrder = [];
       for (let i = 1; i <= 6; i++) {
         const orderKey = `\u7EA2\u7403\u987A\u5E8F${i}`;
+        let ball;
         if (row[orderKey] !== void 0) {
-          redBallsOrder.push(row[orderKey]);
+          ball = row[orderKey];
         } else {
-          redBallsOrder.push(redBalls[i - 1]);
+          ball = redBalls[i - 1];
+        }
+        redBallsOrder.push(formatBall2(ball));
+      }
+      validRows.push({
+        issueNumber,
+        drawDate: drawDate.toISOString().split("T")[0],
+        // 只保留日期部分
+        sortedReds,
+        redBallsOrder,
+        blue: formatBall2(row.\u84DD\u7403)
+      });
+    }
+    if (validRows.length > 0) {
+      for (const row of validRows) {
+        try {
+          await db.prepare(
+            `INSERT INTO lottery_history (
+              issue_number, draw_date, 
+              red_1, red_2, red_3, red_4, red_5, red_6, 
+              red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
+              blue
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ).bind(
+            row.issueNumber,
+            row.drawDate,
+            row.sortedReds[0],
+            row.sortedReds[1],
+            row.sortedReds[2],
+            row.sortedReds[3],
+            row.sortedReds[4],
+            row.sortedReds[5],
+            row.redBallsOrder[0],
+            row.redBallsOrder[1],
+            row.redBallsOrder[2],
+            row.redBallsOrder[3],
+            row.redBallsOrder[4],
+            row.redBallsOrder[5],
+            row.blue
+          ).run();
+          importedCount++;
+        } catch (error) {
+          console.error(`\u63D2\u5165\u6570\u636E\u5931\u8D25\uFF08\u671F\u53F7: ${row.issueNumber}\uFF09:`, error);
+          continue;
         }
       }
-      const existing = await db.prepare(
-        "SELECT id FROM lottery_history WHERE issue_number = ?"
-      ).bind(row.\u671F\u53F7).first();
-      if (existing) {
-        skippedCount++;
-        continue;
-      }
-      await db.prepare(
-        `INSERT INTO lottery_history (
-          issue_number, draw_date, 
-          red_1, red_2, red_3, red_4, red_5, red_6, 
-          red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
-          blue
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(
-        row.\u671F\u53F7,
-        drawDate.toISOString(),
-        sortedReds[0],
-        sortedReds[1],
-        sortedReds[2],
-        sortedReds[3],
-        sortedReds[4],
-        sortedReds[5],
-        redBallsOrder[0],
-        redBallsOrder[1],
-        redBallsOrder[2],
-        redBallsOrder[3],
-        redBallsOrder[4],
-        redBallsOrder[5],
-        row.\u84DD\u7403
-      ).run();
-      importedCount++;
     }
     return new Response(JSON.stringify({
       success: true,
@@ -31241,6 +31278,10 @@ async function importHistoryFromExcel(request, env) {
   }
 }
 __name(importHistoryFromExcel, "importHistoryFromExcel");
+function formatBall(num) {
+  return String(num).padStart(2, "0");
+}
+__name(formatBall, "formatBall");
 function generateRedNumbers() {
   const redNumbers = [];
   while (redNumbers.length < 6) {
@@ -31249,11 +31290,12 @@ function generateRedNumbers() {
       redNumbers.push(num);
     }
   }
-  return redNumbers.sort((a, b) => a - b);
+  return redNumbers.sort((a, b) => a - b).map(formatBall);
 }
 __name(generateRedNumbers, "generateRedNumbers");
 function generateBlueNumber() {
-  return Math.floor(Math.random() * 16) + 1;
+  const num = Math.floor(Math.random() * 16) + 1;
+  return formatBall(num);
 }
 __name(generateBlueNumber, "generateBlueNumber");
 async function isNumberExists(env, redNumbers, blueNumber) {
@@ -31601,14 +31643,14 @@ function parseSportteryHTML(html) {
       const redBalls = redMatch[1].match(/<span[^>]*>(\d{2})<\/span>/g);
       if (!redBalls || redBalls.length !== 6)
         continue;
-      const red = redBalls.map((ball) => parseInt(ball.match(/<span[^>]*>(\d{2})<\/span>/)[1])).sort((a, b) => a - b);
+      const red = redBalls.map((ball) => ball.match(/<span[^>]*>(\d{2})<\/span>/)[1]).sort((a, b) => parseInt(a) - parseInt(b));
       const blueMatch = row.match(/<td[^>]*class="td_ball_blue"[^>]*>([\s\S]*?)<\/td>/);
       if (!blueMatch)
         continue;
       const blueBall = blueMatch[1].match(/<span[^>]*>(\d{2})<\/span>/);
       if (!blueBall)
         continue;
-      const blue = parseInt(blueBall[1]);
+      const blue = blueBall[1];
       results.push({
         issue,
         red,
@@ -31677,13 +31719,13 @@ function parse500LotteryHTML(html) {
         console.log("\u672A\u627E\u5230\u7EA2\u7403\u6216\u7EA2\u7403\u6570\u91CF\u4E0D\u8DB3");
         continue;
       }
-      const red = redMatch.slice(0, 6).map((ball) => parseInt(ball.match(/<td[^>]*class="t_cfont2"[^>]*>(\d{2})<\/td>/)[1])).sort((a, b) => a - b);
+      const red = redMatch.slice(0, 6).map((ball) => ball.match(/<td[^>]*class="t_cfont2"[^>]*>(\d{2})<\/td>/)[1]).sort((a, b) => parseInt(a) - parseInt(b));
       const blueMatch = row.match(/<td[^>]*class="t_cfont4"[^>]*>(\d{2})<\/td>/);
       if (!blueMatch) {
         console.log("\u672A\u627E\u5230\u84DD\u7403");
         continue;
       }
-      const blue = parseInt(blueMatch[1]);
+      const blue = blueMatch[1];
       const dateMatch = row.match(/<td[^>]*>(\d{4}-\d{2}-\d{2})<\/td>/g);
       if (!dateMatch || dateMatch.length === 0) {
         console.log("\u672A\u627E\u5230\u65E5\u671F");
@@ -31765,11 +31807,11 @@ function parseZcwHTML(html) {
       const redMatch = row.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/g);
       if (!redMatch || redMatch.length !== 6)
         continue;
-      const red = redMatch.map((ball) => parseInt(ball.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/)[1])).sort((a, b) => a - b);
+      const red = redMatch.map((ball) => ball.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/)[1]).sort((a, b) => parseInt(a) - parseInt(b));
       const blueMatch = row.match(/<td[^>]*class="blue"[^>]*>(\d{2})<\/td>/);
       if (!blueMatch)
         continue;
-      const blue = parseInt(blueMatch[1]);
+      const blue = blueMatch[1];
       results.push({
         issue,
         red,
@@ -31844,7 +31886,8 @@ function parseLecaiHTML(html) {
         let redBalls = [];
         let redBallMatch;
         while ((redBallMatch = redBallPattern.exec(row)) !== null) {
-          redBalls.push(parseInt(redBallMatch[1]));
+          const ball = String(parseInt(redBallMatch[1])).padStart(2, "0");
+          redBalls.push(ball);
           if (redBalls.length === 6)
             break;
         }
@@ -31853,8 +31896,8 @@ function parseLecaiHTML(html) {
         const blueBallMatch = row.match(/<td[^>]*class="[^>]*blue[^>]*"[^>]*>([\d]{1,2})<\/td>/);
         if (!blueBallMatch)
           continue;
-        const blue = parseInt(blueBallMatch[1]);
-        const sortedReds = [...redBalls].sort((a, b) => a - b);
+        const blue = String(parseInt(blueBallMatch[1])).padStart(2, "0");
+        const sortedReds = [...redBalls].sort((a, b) => parseInt(a) - parseInt(b));
         results.push({
           issue,
           red: sortedReds,
@@ -31954,7 +31997,7 @@ function parseCWLHTML(html) {
       if (redMatches.length !== 6)
         continue;
       const redOrder = redMatches.map((match) => match[1]);
-      const red = [...redOrder].sort((a, b) => a - b);
+      const red = [...redOrder].sort((a, b) => parseInt(a) - parseInt(b));
       const blueRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*blue[^"]*"[^>]*>([\d]{2})<\/td>/;
       const blueMatch = row.match(blueRegex);
       if (!blueMatch)

@@ -249,21 +249,55 @@
         // 显示生成的号码
         function displayGeneratedNumber(numbers) {
             const container = document.getElementById('generated-numbers');
-            container.innerHTML = '';
             
-            // 添加红球
-            numbers.red.forEach(num => {
-                const ball = document.createElement('div');
-                ball.className = 'red-ball';
-                ball.textContent = num;
-                container.appendChild(ball);
+            // 确保所有号码都是两位数显示
+            const formattedRedNumbers = numbers.red.map(num => num.padStart(2, '0'));
+            const formattedBlueNumber = numbers.blue.padStart(2, '0');
+            
+            // 创建表格
+            const table = document.createElement('table');
+            table.className = 'number-table';
+            
+            // 创建表头
+            const headerRow = document.createElement('tr');
+            const redHeader = document.createElement('th');
+            redHeader.textContent = '红球';
+            redHeader.colSpan = 6;
+            const blueHeader = document.createElement('th');
+            blueHeader.textContent = '蓝球';
+            headerRow.appendChild(redHeader);
+            headerRow.appendChild(blueHeader);
+            table.appendChild(headerRow);
+            
+            // 创建数据行
+            const dataRow = document.createElement('tr');
+            formattedRedNumbers.forEach(num => {
+                const cell = document.createElement('td');
+                cell.className = 'red-ball';
+                cell.textContent = num;
+                dataRow.appendChild(cell);
             });
+            const blueCell = document.createElement('td');
+            blueCell.className = 'blue-ball';
+            blueCell.textContent = formattedBlueNumber;
+            dataRow.appendChild(blueCell);
+            table.appendChild(dataRow);
             
-            // 添加蓝球
-            const blueBall = document.createElement('div');
-            blueBall.className = 'blue-ball';
-            blueBall.textContent = numbers.blue;
-            container.appendChild(blueBall);
+            // 创建复制按钮
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'btn copy-btn';
+            copyBtn.textContent = '复制号码';
+            copyBtn.onclick = () => {
+                const numberText = formattedRedNumbers.join(' ') + ' ' + formattedBlueNumber;
+                navigator.clipboard.writeText(numberText)
+                    .then(() => showMessage('号码已复制到剪贴板！', 'success'))
+                    .catch(err => showMessage('复制失败，请手动复制', 'error'));
+            };
+            
+            // 清空容器并添加表格和复制按钮
+            container.innerHTML = '';
+            container.appendChild(table);
+            container.appendChild(copyBtn);
         }
 
         // 获取历史数据
