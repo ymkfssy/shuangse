@@ -438,7 +438,7 @@
             showMessage('正在导入数据，请稍候...', 'success');
             
             try {
-                const response = await fetch('/api/import-excel', {
+                const response = await fetch('/api/history/import', {
                     method: 'POST',
                     body: formData
                 });
@@ -456,11 +456,6 @@
                 console.error('导入数据失败:', error);
                 showMessage('导入数据失败，请稍后重试', 'error');
             }
-        }
-
-        // 下载导入模板
-        function downloadTemplate() {
-            window.location.href = '/api/download-template';
         }
 
         // 页面加载完成后初始化
