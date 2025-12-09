@@ -13,6 +13,12 @@ database_name = "shuangse-lottery-db"
 [triggers]
 crons = ["0 10 * * *"]
 
+# KV命名空间配置
+[[kv_namespaces]]
+binding = "SESSION_KV"
+id = "your-production-kv-id"
+preview_id = "your-preview-kv-id"
+
 # 环境变量
 [vars]
 ENVIRONMENT = "production"

@@ -2,78 +2,156 @@
 
 ## 概述
 
-这个项目是一个基于 Cloudflare Workers 和 D1 数据库的双色球选号系统，支持自动爬取历史开奖数据、用户登录注册、生成未出现过的号码等功能。
+本指南详细介绍了双色球选号系统的部署流程，包括环境准备、依赖安装、数据库配置、本地测试和生产部署等步骤。该系统基于 Cloudflare Workers 和 D1 数据库开发，支持自动爬取历史开奖数据、用户认证、号码生成和分析等功能。
 
-## 部署步骤
+## 目录
 
-### 1. 环境准备
+- [环境要求](#环境要求)
+- [安装步骤](#安装步骤)
+- [数据库配置](#数据库配置)
+- [KV 命名空间配置](#kv-命名空间配置)
+- [本地开发与测试](#本地开发与测试)
+- [生产环境部署](#生产环境部署)
+- [配置说明](#配置说明)
+- [定时任务](#定时任务)
+- [常见问题解决方案](#常见问题解决方案)
 
-确保你已经安装了 Node.js (v16+) 和 Wrangler CLI。
+## 环境要求
+
+- **Node.js**: v16 或更高版本
+- **npm**: v8 或更高版本
+- **Cloudflare 账号**: 需要注册并登录 Cloudflare
+- **Wrangler CLI**: Cloudflare Workers 的命令行工具
+
+## 安装步骤
+
+### 1. 安装 Wrangler CLI
 
 ```bash
-# 安装 Wrangler CLI
+# 全局安装 Wrangler CLI
 npm install -g wrangler
 
+# 或者使用 npx 直接运行
+npx wrangler --version
+```
+
+### 2. 登录 Cloudflare
+
+```bash
 # 登录 Cloudflare 账号
 npx wrangler login
 ```
 
-### 2. 项目设置
+执行命令后，会打开浏览器并引导你完成登录过程。
+
+### 3. 克隆项目
 
 ```bash
+# 克隆项目仓库
+git clone <repository-url>
+cd shuangse-lottery
+
 # 安装项目依赖
 npm install
 ```
 
-### 3. 创建 D1 数据库
+## 数据库配置
+
+### 1. 创建 D1 数据库
 
 ```bash
 # 创建 D1 数据库
 npx wrangler d1 create shuangse-lottery-db
-
-# 记录返回的 database_id，然后更新 wrangler.toml 文件中的 database_id
 ```
 
-### 4. 执行数据库迁移
+执行命令后，会返回数据库的 ID 和连接信息，记录下 `database_id`，用于后续配置。
+
+### 2. 更新配置文件
+
+编辑 `wrangler.toml` 文件，将 `database_id` 替换为实际的数据库 ID：
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_id = "你的实际数据库ID"
+```
+
+### 3. 执行数据库迁移
 
 ```bash
-# 执行完整数据库结构迁移
+# 执行数据库结构迁移
 npx wrangler d1 execute shuangse-lottery-db --file=./migrations/complete_schema.sql
 ```
 
-### 5. 创建 KV 命名空间（如果不存在）
+该命令会创建系统所需的所有数据库表和结构。
+
+## KV 命名空间配置
+
+### 1. 创建 KV 命名空间
 
 ```bash
 # 创建生产环境 KV 命名空间
-npx wrangler kv:namespace create "__shuangse-workers_sites_assets"
+npx wrangler kv:namespace create SESSION_KV
 
 # 创建预览环境 KV 命名空间
-npx wrangler kv:namespace create "__shuangse-workers_sites_assets" --preview
-
-# 更新 wrangler.toml 中的 KV ID
+npx wrangler kv:namespace create SESSION_KV --preview
 ```
 
-### 6. 本地测试
+执行命令后，会返回 KV 命名空间的 ID，记录下 `id` 和 `preview_id`。
+
+### 2. 更新配置文件
+
+编辑 `wrangler.toml` 文件，添加 KV 命名空间配置：
+
+```toml
+[[kv_namespaces]]
+binding = "SESSION_KV"
+id = "你的生产环境KV命名空间ID"
+preview_id = "你的预览环境KV命名空间ID"
+```
+
+## 本地开发与测试
+
+### 1. 启动本地开发服务器
 
 ```bash
 # 启动本地开发服务器
 npm run dev
-
-# 测试访问 http://localhost:8787/login.html
 ```
 
-### 7. 部署到 Cloudflare
+### 2. 测试访问
+
+服务器启动后，访问以下地址：
+- 登录页面：http://localhost:8787/login.html
+- 主应用页面：http://localhost:8787/app.html
+- 号码分析页面：http://localhost:8787/analysis.html
+
+### 3. 功能测试
+
+- 注册新用户
+- 登录系统
+- 生成新号码
+- 获取最新开奖数据
+- 查看号码分析
+
+## 生产环境部署
+
+### 1. 部署到 Cloudflare
 
 ```bash
 # 部署到生产环境
 npm run deploy
 ```
 
+### 2. 验证部署
+
+部署完成后，访问 Cloudflare Workers 控制台，找到部署的 Worker，查看分配的域名。通过该域名访问系统，验证所有功能是否正常。
+
 ## 配置说明
 
 ### wrangler.toml 配置
 
-确保以下配置正确：
+完整的配置文件示例：
 
 ```toml
 name = "shuangse"
@@ -88,15 +166,129 @@ bucket = "public"
 binding = "DB"
 database_id = "你的实际数据库ID"
 
+[[kv_namespaces]]
+binding = "SESSION_KV"
+id = "你的生产环境KV命名空间ID"
+preview_id = "你的预览环境KV命名空间ID"
+
 [triggers]
 crons = ["0 10 * * 1,3,5"]  # 每周一、三、五上午10点执行爬取
 ```
+
+### 配置参数说明
+
+- `name`: Worker 的名称
+- `main`: 主入口文件路径
+- `workers_dev`: 是否启用 workers.dev 域名
+- `compatibility_date`: 兼容性日期
+- `[site]`: 静态网站配置
+  - `bucket`: 静态资源目录
+- `[[d1_databases]]`: D1 数据库配置
+  - `binding`: 数据库绑定名称
+  - `database_id`: 数据库 ID
+- `[[kv_namespaces]]`: KV 命名空间配置
+  - `binding`: KV 绑定名称
+  - `id`: 生产环境 KV 命名空间 ID
+  - `preview_id`: 预览环境 KV 命名空间 ID
+- `[triggers]`: 定时任务配置
+  - `crons`: Cron 表达式数组，定义定时任务执行时间
 
 ## 定时任务
 
 系统配置了定时任务，每周一、周三、周五的上午10点自动从官方网站爬取最新的双色球开奖数据。
 
 Cron 表达式：`0 10 * * 1,3,5`
+
+- `0`: 分钟 (0-59)
+- `10`: 小时 (0-23)
+- `*`: 日 (1-31)
+- `*`: 月 (1-12)
+- `1,3,5`: 周 (0-6，其中 0 代表周日，1 代表周一，以此类推)
+
+## 常见问题解决方案
+
+### 1. 数据库连接失败
+
+**问题描述**：本地开发或部署时，出现数据库连接失败的错误。
+
+**解决方案**：
+- 检查 `wrangler.toml` 文件中的 `database_id` 是否正确
+- 确认已经执行了数据库迁移命令
+- 检查 Cloudflare D1 数据库是否已经创建成功
+
+### 2. KV 命名空间错误
+
+**问题描述**：出现 KV 命名空间相关的错误。
+
+**解决方案**：
+- 检查 `wrangler.toml` 文件中的 KV 命名空间配置是否正确
+- 确认已经创建了 KV 命名空间，并且 `id` 和 `preview_id` 正确
+
+### 3. 本地开发服务器无法启动
+
+**问题描述**：执行 `npm run dev` 命令后，服务器无法启动。
+
+**解决方案**：
+- 检查 Node.js 版本是否符合要求
+- 重新安装项目依赖：`npm install`
+- 检查 `wrangler.toml` 文件是否有语法错误
+
+### 4. 部署失败
+
+**问题描述**：执行 `npm run deploy` 命令后，部署失败。
+
+**解决方案**：
+- 检查网络连接是否正常
+- 确认 Cloudflare 账号是否有足够的权限
+- 查看部署日志，根据错误信息进行排查
+
+### 5. 定时任务不执行
+
+**问题描述**：配置的定时任务没有按预期执行。
+
+**解决方案**：
+- 检查 `wrangler.toml` 文件中的 Cron 表达式是否正确
+- 确认 Worker 已经成功部署到生产环境
+- 查看 Cloudflare Workers 控制台的日志，检查定时任务执行情况
+
+## 维护与更新
+
+### 更新项目代码
+
+```bash
+# 拉取最新代码
+git pull origin main
+
+# 重新部署
+npm run deploy
+```
+
+### 更新依赖
+
+```bash
+# 更新项目依赖
+npm update
+
+# 重新部署
+npm run deploy
+```
+
+### 数据库备份与恢复
+
+```bash
+# 备份数据库
+npx wrangler d1 execute shuangse-lottery-db --command="SELECT * FROM lottery_history" > backup.sql
+
+# 恢复数据库
+npx wrangler d1 execute shuangse-lottery-db --file=./backup.sql
+```
+
+## 联系方式
+
+如有其他问题或建议，请通过以下方式联系：
+
+- 项目仓库：<repository-url>
+- 维护者：<maintainer-email>
 
 ## 功能特性
 

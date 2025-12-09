@@ -1987,6 +1987,26 @@ export async function generateRecommendation(request, env) {
   }
 }
 
+// 获取总组合数
+export async function getTotalCombinations(request, env) {
+  try {
+    // 双色球总组合数：C(33,6) * C(16,1) = 1107568 * 16 = 17721088
+    const totalCombinations = 17721088;
+    return new Response(JSON.stringify({ 
+      success: true, 
+      totalCombinations: totalCombinations.toLocaleString() 
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('获取总组合数失败:', error);
+    return new Response(JSON.stringify({ success: false, error: '获取总组合数失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 // 生成模拟测试数据
 function generateMockData() {
   const results = [];

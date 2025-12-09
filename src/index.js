@@ -1,6 +1,6 @@
 // import { getAssetFromKV } from '@cloudflare/kv-asset-handler';  // 暂时注释掉，避免KV依赖
 import { handleLogin, handleRegister, handleLogout, isAuthenticated, getUserFromSession, isAdmin, getPendingUsers, approveUser } from './auth.js';
-import { getHistoryNumbers, generateNewNumbers, crawlHistoryNumbers, importHistoryFromExcel, fixDrawDates, analyzeHotCold, analyzeParity, analyzeSize, analyzeRange, analyzeMissing, generateRecommendation } from './lottery.js';
+import { getHistoryNumbers, generateNewNumbers, crawlHistoryNumbers, importHistoryFromExcel, fixDrawDates, analyzeHotCold, analyzeParity, analyzeSize, analyzeRange, analyzeMissing, generateRecommendation, getTotalCombinations } from './lottery.js';
 import { initDatabase, getDB } from './database.js';
 
 // 处理HTTP请求
@@ -34,11 +34,9 @@ async function handleRequest(request, env, ctx) {
       const url = new URL(request.url);
       const count = parseInt(url.searchParams.get('count') || '1');
       
-      if (count > 1) {
-        return generateNewNumbers(request, env);
-      } else {
-        return generateNewNumber(request, env);
-      }
+      return generateNewNumbers(request, env);
+    } else if (apiPath === 'total-combinations' && request.method === 'GET') {
+      return getTotalCombinations(request, env);
     } else if (apiPath === 'crawl' && request.method === 'POST') {
       return crawlHistoryNumbers(request, env);
     } else if (apiPath === 'analysis/hot-cold' && request.method === 'GET') {

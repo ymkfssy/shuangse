@@ -713,7 +713,7 @@
         // 生成推荐号码
         async function generateRecommendation() {
             try {
-                const response = await fetch('/api/analysis/recommend');
+                const response = await fetch('/api/analysis/recommendation');
                 if (!response.ok) {
                     throw new Error('生成推荐号码失败');
                 }

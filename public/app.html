@@ -347,7 +347,7 @@
                     <div class="stat-label">已生成号码</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-number">17,721,088</div>
+                    <div class="stat-number" id="total-combinations">17,721,088</div>
                     <div class="stat-label">总组合数</div>
                 </div>
             </div>
@@ -400,6 +400,7 @@
                 }
             } catch (error) {
                 showMessage('生成号码失败，请稍后重试', 'error');
+                console.error('生成号码错误:', error);
             }
         }
 
@@ -643,13 +644,44 @@
             }
         }
         
+        // 加载总组合数
+        async function loadTotalCombinations() {
+            try {
+                const response = await fetch('/api/total-combinations');
+                const result = await response.json();
+                
+                const totalCombinationsEl = document.getElementById('total-combinations');
+                if (totalCombinationsEl) {
+                    if (response.ok) {
+                        totalCombinationsEl.textContent = result.totalCombinations;
+                    } else {
+                        totalCombinationsEl.textContent = 'N/A';
+                        showMessage(result.error, 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('加载总组合数错误:', error);
+                const totalCombinationsEl = document.getElementById('total-combinations');
+                if (totalCombinationsEl) {
+                    totalCombinationsEl.textContent = 'N/A';
+                }
+            }
+        }
+
         // 页面加载完成后初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            getHistoryNumbers();
-            // 生成一个初始号码
-            generateNumber();
-            // 检查管理员状态
-            checkAdminStatus();
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                getHistoryNumbers();
+                // 加载总组合数
+                loadTotalCombinations();
+                // 生成一个初始号码
+                generateNumber();
+                // 检查管理员状态
+                await checkAdminStatus();
+            } catch (error) {
+                console.error('页面加载错误:', error);
+                showMessage('页面加载失败，请刷新重试', 'error');
+            }
         });
         
         // 监听登录事件，在登录成功后检查管理员状态
