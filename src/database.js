@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
+  is_admin BOOLEAN DEFAULT 0,
+  is_approved BOOLEAN DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -57,6 +59,14 @@ CREATE TABLE IF NOT EXISTS user_numbers (
   generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users (id)
 );
+
+-- =====================================================
+-- 表结构更新 - 兼容现有表
+-- =====================================================
+
+-- 为users表添加缺失的字段
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT 1;
 
 -- =====================================================
 -- 索引创建

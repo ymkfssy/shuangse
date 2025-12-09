@@ -39,7 +39,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// .wrangler/tmp/bundle-oYzsws/checked-fetch.js
+// .wrangler/tmp/bundle-ND6Al2/checked-fetch.js
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
     (typeof request === "string" ? new Request(request, init) : request).url
@@ -57,7 +57,7 @@ function checkURL(request, init) {
 }
 var urls;
 var init_checked_fetch = __esm({
-  ".wrangler/tmp/bundle-oYzsws/checked-fetch.js"() {
+  ".wrangler/tmp/bundle-ND6Al2/checked-fetch.js"() {
     urls = /* @__PURE__ */ new Set();
     __name(checkURL, "checkURL");
     globalThis.fetch = new Proxy(globalThis.fetch, {
@@ -70,14 +70,14 @@ var init_checked_fetch = __esm({
   }
 });
 
-// .wrangler/tmp/bundle-oYzsws/strip-cf-connecting-ip-header.js
+// .wrangler/tmp/bundle-ND6Al2/strip-cf-connecting-ip-header.js
 function stripCfConnectingIPHeader(input, init) {
   const request = new Request(input, init);
   request.headers.delete("CF-Connecting-IP");
   return request;
 }
 var init_strip_cf_connecting_ip_header = __esm({
-  ".wrangler/tmp/bundle-oYzsws/strip-cf-connecting-ip-header.js"() {
+  ".wrangler/tmp/bundle-ND6Al2/strip-cf-connecting-ip-header.js"() {
     __name(stripCfConnectingIPHeader, "stripCfConnectingIPHeader");
     globalThis.fetch = new Proxy(globalThis.fetch, {
       apply(target, thisArg, argArray) {
@@ -2180,6 +2180,14 @@ CREATE TABLE IF NOT EXISTS user_numbers (
 );
 
 -- =====================================================
+-- \u8868\u7ED3\u6784\u66F4\u65B0 - \u517C\u5BB9\u73B0\u6709\u8868
+-- =====================================================
+
+-- \u4E3Ausers\u8868\u6DFB\u52A0\u7F3A\u5931\u7684\u5B57\u6BB5
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT 1;
+
+-- =====================================================
 -- \u7D22\u5F15\u521B\u5EFA
 -- =====================================================
 
@@ -2249,12 +2257,9 @@ async function handleRegister(request, env) {
       return new Response(JSON.stringify({ error: "\u7528\u6237\u540D\u5DF2\u5B58\u5728" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
     const hashedPassword = await import_bcryptjs.default.hash(password, 10);
-    const userCount = await db.prepare("SELECT COUNT(*) as count FROM users").first();
-    const isAdmin2 = userCount.count === 0 ? 1 : 0;
-    const isApproved = userCount.count === 0 ? 1 : 0;
     await db.prepare(
-      "INSERT INTO users (username, password, is_admin, is_approved) VALUES (?, ?, ?, ?)"
-    ).bind(username, hashedPassword, isAdmin2, isApproved).run();
+      "INSERT INTO users (username, password) VALUES (?, ?)"
+    ).bind(username, hashedPassword).run();
     const message = userCount.count === 0 ? "\u6CE8\u518C\u6210\u529F\uFF0C\u60A8\u662F\u7B2C\u4E00\u4E2A\u7528\u6237\uFF0C\u5DF2\u81EA\u52A8\u6210\u4E3A\u7BA1\u7406\u5458" : "\u6CE8\u518C\u6210\u529F\uFF0C\u8BF7\u7B49\u5F85\u7BA1\u7406\u5458\u6279\u51C6\u540E\u767B\u5F55";
     return new Response(JSON.stringify({ success: true, message }), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (error) {
@@ -2274,9 +2279,6 @@ async function handleLogin(request, env) {
     if (!user) {
       return new Response(JSON.stringify({ error: "\u7528\u6237\u540D\u6216\u5BC6\u7801\u9519\u8BEF" }), { status: 401, headers: { "Content-Type": "application/json" } });
     }
-    if (!user.is_approved) {
-      return new Response(JSON.stringify({ error: "\u60A8\u7684\u8D26\u53F7\u5C1A\u672A\u88AB\u7BA1\u7406\u5458\u6279\u51C6\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5" }), { status: 401, headers: { "Content-Type": "application/json" } });
-    }
     const isPasswordValid = await import_bcryptjs.default.compare(password, user.password);
     if (!isPasswordValid) {
       return new Response(JSON.stringify({ error: "\u7528\u6237\u540D\u6216\u5BC6\u7801\u9519\u8BEF" }), { status: 401, headers: { "Content-Type": "application/json" } });
@@ -2289,24 +2291,24 @@ async function handleLogin(request, env) {
     ).bind(sessionId, user.id, expiresAt.toISOString()).run();
     return new Response(JSON.stringify({
       success: true,
-      message: "\u767B\u5F55\u6210\u529F",
       user: {
         id: user.id,
         username: user.username,
-        is_admin: user.is_admin,
-        is_approved: user.is_approved
+        is_admin: false,
+        // 暂时默认非管理员
+        is_approved: true
+        // 暂时默认已批准
       }
     }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Set-Cookie": import_cookie.default.serialize("session", sessionId, {
+        "Set-Cookie": import_cookie.default.serialize("session_id", sessionId, {
           httpOnly: true,
-          secure: request.url.startsWith("https://"),
+          secure: env.ENVIRONMENT === "production",
           sameSite: "strict",
-          path: "/",
-          maxAge: 86400
-          // 24小时
+          maxAge: 60 * 60 * 24,
+          path: "/"
         })
       }
     });
@@ -2343,8 +2345,12 @@ async function getUserFromSession(request, env) {
     }
     const db = getDB(env);
     const session = await db.prepare(
-      'SELECT s.*, u.id as user_id, u.username, u.is_admin, u.is_approved FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.session_id = ? AND s.expires_at > datetime("now")'
+      'SELECT s.*, u.id as user_id, u.username FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.session_id = ? AND s.expires_at > datetime("now")'
     ).bind(sessionId).first();
+    if (session) {
+      session.is_admin = false;
+      session.is_approved = true;
+    }
     return session;
   } catch (error) {
     console.error("Session validation error:", error);
@@ -2421,12 +2427,12 @@ var init_auth = __esm({
   }
 });
 
-// .wrangler/tmp/bundle-oYzsws/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-ND6Al2/middleware-loader.entry.ts
 init_checked_fetch();
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 
-// .wrangler/tmp/bundle-oYzsws/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-ND6Al2/middleware-insertion-facade.js
 init_checked_fetch();
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
@@ -33481,7 +33487,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-oYzsws/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-ND6Al2/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -33516,7 +33522,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-oYzsws/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-ND6Al2/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

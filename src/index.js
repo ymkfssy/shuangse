@@ -29,11 +29,7 @@ async function handleRequest(request, env, ctx) {
       return handleLogout(request, env);
     } else if (apiPath === 'history' && request.method === 'GET') {
       return getHistoryNumbers(request, env);
-    } else if (apiPath === 'generate' && request.method === 'GET') {
-      // 支持批量生成，通过count参数控制生成数量
-      const url = new URL(request.url);
-      const count = parseInt(url.searchParams.get('count') || '1');
-      
+    } else if (apiPath === 'generate' && (request.method === 'GET' || request.method === 'POST')) {
       return generateNewNumbers(request, env);
     } else if (apiPath === 'total-combinations' && request.method === 'GET') {
       return getTotalCombinations(request, env);

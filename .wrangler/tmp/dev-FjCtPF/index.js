@@ -39,7 +39,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// .wrangler/tmp/bundle-oYzsws/checked-fetch.js
+// .wrangler/tmp/bundle-VLknFG/checked-fetch.js
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
     (typeof request === "string" ? new Request(request, init) : request).url
@@ -57,7 +57,7 @@ function checkURL(request, init) {
 }
 var urls;
 var init_checked_fetch = __esm({
-  ".wrangler/tmp/bundle-oYzsws/checked-fetch.js"() {
+  ".wrangler/tmp/bundle-VLknFG/checked-fetch.js"() {
     urls = /* @__PURE__ */ new Set();
     __name(checkURL, "checkURL");
     globalThis.fetch = new Proxy(globalThis.fetch, {
@@ -70,14 +70,14 @@ var init_checked_fetch = __esm({
   }
 });
 
-// .wrangler/tmp/bundle-oYzsws/strip-cf-connecting-ip-header.js
+// .wrangler/tmp/bundle-VLknFG/strip-cf-connecting-ip-header.js
 function stripCfConnectingIPHeader(input, init) {
   const request = new Request(input, init);
   request.headers.delete("CF-Connecting-IP");
   return request;
 }
 var init_strip_cf_connecting_ip_header = __esm({
-  ".wrangler/tmp/bundle-oYzsws/strip-cf-connecting-ip-header.js"() {
+  ".wrangler/tmp/bundle-VLknFG/strip-cf-connecting-ip-header.js"() {
     __name(stripCfConnectingIPHeader, "stripCfConnectingIPHeader");
     globalThis.fetch = new Proxy(globalThis.fetch, {
       apply(target, thisArg, argArray) {
@@ -2180,6 +2180,14 @@ CREATE TABLE IF NOT EXISTS user_numbers (
 );
 
 -- =====================================================
+-- \u8868\u7ED3\u6784\u66F4\u65B0 - \u517C\u5BB9\u73B0\u6709\u8868
+-- =====================================================
+
+-- \u4E3Ausers\u8868\u6DFB\u52A0\u7F3A\u5931\u7684\u5B57\u6BB5
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT 1;
+
+-- =====================================================
 -- \u7D22\u5F15\u521B\u5EFA
 -- =====================================================
 
@@ -2249,14 +2257,10 @@ async function handleRegister(request, env) {
       return new Response(JSON.stringify({ error: "\u7528\u6237\u540D\u5DF2\u5B58\u5728" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
     const hashedPassword = await import_bcryptjs.default.hash(password, 10);
-    const userCount = await db.prepare("SELECT COUNT(*) as count FROM users").first();
-    const isAdmin2 = userCount.count === 0 ? 1 : 0;
-    const isApproved = userCount.count === 0 ? 1 : 0;
     await db.prepare(
-      "INSERT INTO users (username, password, is_admin, is_approved) VALUES (?, ?, ?, ?)"
-    ).bind(username, hashedPassword, isAdmin2, isApproved).run();
-    const message = userCount.count === 0 ? "\u6CE8\u518C\u6210\u529F\uFF0C\u60A8\u662F\u7B2C\u4E00\u4E2A\u7528\u6237\uFF0C\u5DF2\u81EA\u52A8\u6210\u4E3A\u7BA1\u7406\u5458" : "\u6CE8\u518C\u6210\u529F\uFF0C\u8BF7\u7B49\u5F85\u7BA1\u7406\u5458\u6279\u51C6\u540E\u767B\u5F55";
-    return new Response(JSON.stringify({ success: true, message }), { status: 200, headers: { "Content-Type": "application/json" } });
+      "INSERT INTO users (username, password) VALUES (?, ?)"
+    ).bind(username, hashedPassword).run();
+    return new Response(JSON.stringify({ success: true, message: "\u6CE8\u518C\u6210\u529F" }), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (error) {
     console.error("\u6CE8\u518C\u5931\u8D25:", error);
     return new Response(JSON.stringify({ error: `\u6CE8\u518C\u5931\u8D25: ${error.message}` }), { status: 500, headers: { "Content-Type": "application/json" } });
@@ -2274,9 +2278,6 @@ async function handleLogin(request, env) {
     if (!user) {
       return new Response(JSON.stringify({ error: "\u7528\u6237\u540D\u6216\u5BC6\u7801\u9519\u8BEF" }), { status: 401, headers: { "Content-Type": "application/json" } });
     }
-    if (!user.is_approved) {
-      return new Response(JSON.stringify({ error: "\u60A8\u7684\u8D26\u53F7\u5C1A\u672A\u88AB\u7BA1\u7406\u5458\u6279\u51C6\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5" }), { status: 401, headers: { "Content-Type": "application/json" } });
-    }
     const isPasswordValid = await import_bcryptjs.default.compare(password, user.password);
     if (!isPasswordValid) {
       return new Response(JSON.stringify({ error: "\u7528\u6237\u540D\u6216\u5BC6\u7801\u9519\u8BEF" }), { status: 401, headers: { "Content-Type": "application/json" } });
@@ -2289,24 +2290,24 @@ async function handleLogin(request, env) {
     ).bind(sessionId, user.id, expiresAt.toISOString()).run();
     return new Response(JSON.stringify({
       success: true,
-      message: "\u767B\u5F55\u6210\u529F",
       user: {
         id: user.id,
         username: user.username,
-        is_admin: user.is_admin,
-        is_approved: user.is_approved
+        is_admin: false,
+        // 暂时默认非管理员
+        is_approved: true
+        // 暂时默认已批准
       }
     }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Set-Cookie": import_cookie.default.serialize("session", sessionId, {
+        "Set-Cookie": import_cookie.default.serialize("session_id", sessionId, {
           httpOnly: true,
-          secure: request.url.startsWith("https://"),
+          secure: env.ENVIRONMENT === "production",
           sameSite: "strict",
-          path: "/",
-          maxAge: 86400
-          // 24小时
+          maxAge: 60 * 60 * 24,
+          path: "/"
         })
       }
     });
@@ -2318,7 +2319,7 @@ async function handleLogin(request, env) {
 async function handleLogout(request, env) {
   try {
     const cookies = import_cookie.default.parse(request.headers.get("Cookie") || "");
-    const sessionId = cookies.session;
+    const sessionId = cookies.session_id;
     if (sessionId) {
       const db = getDB(env);
       await db.prepare("DELETE FROM sessions WHERE session_id = ?").bind(sessionId).run();
@@ -2327,7 +2328,7 @@ async function handleLogout(request, env) {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Set-Cookie": "session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict"
+        "Set-Cookie": "session_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict"
       }
     });
   } catch (error) {
@@ -2336,15 +2337,23 @@ async function handleLogout(request, env) {
 }
 async function getUserFromSession(request, env) {
   try {
-    const cookies = import_cookie.default.parse(request.headers.get("Cookie") || "");
-    const sessionId = cookies.session;
+    const cookieHeader = request.headers.get("Cookie") || "";
+    console.log("Cookie Header:", cookieHeader);
+    const cookies = import_cookie.default.parse(cookieHeader);
+    console.log("Parsed Cookies:", cookies);
+    const sessionId = cookies.session_id;
+    console.log("Session ID:", sessionId);
     if (!sessionId) {
       return null;
     }
     const db = getDB(env);
     const session = await db.prepare(
-      'SELECT s.*, u.id as user_id, u.username, u.is_admin, u.is_approved FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.session_id = ? AND s.expires_at > datetime("now")'
+      'SELECT s.*, u.id as user_id, u.username FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.session_id = ? AND s.expires_at > datetime("now")'
     ).bind(sessionId).first();
+    if (session) {
+      session.is_admin = false;
+      session.is_approved = true;
+    }
     return session;
   } catch (error) {
     console.error("Session validation error:", error);
@@ -2421,12 +2430,12 @@ var init_auth = __esm({
   }
 });
 
-// .wrangler/tmp/bundle-oYzsws/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-VLknFG/middleware-loader.entry.ts
 init_checked_fetch();
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 
-// .wrangler/tmp/bundle-oYzsws/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-VLknFG/middleware-insertion-facade.js
 init_checked_fetch();
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
@@ -31535,8 +31544,18 @@ async function generateNewNumbers(request, env) {
     if (!user) {
       return new Response(JSON.stringify({ error: "\u7528\u6237\u672A\u767B\u5F55\u6216\u4F1A\u8BDD\u5DF2\u8FC7\u671F" }), { status: 401, headers: { "Content-Type": "application/json" } });
     }
-    const url = new URL(request.url);
-    const count = parseInt(url.searchParams.get("count") || "1");
+    let count = 1;
+    if (request.method === "GET") {
+      const url = new URL(request.url);
+      count = parseInt(url.searchParams.get("count") || "1");
+    } else if (request.method === "POST") {
+      try {
+        const data = await request.json();
+        count = parseInt(data.count || "1");
+      } catch (e) {
+        count = 1;
+      }
+    }
     if (count < 1 || count > 10) {
       return new Response(JSON.stringify({ error: "\u751F\u6210\u6570\u91CF\u5FC5\u987B\u57281-10\u4E4B\u95F4" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
@@ -32821,9 +32840,7 @@ async function handleRequest(request, env, ctx) {
       return handleLogout(request, env);
     } else if (apiPath === "history" && request.method === "GET") {
       return getHistoryNumbers(request, env);
-    } else if (apiPath === "generate" && request.method === "GET") {
-      const url2 = new URL(request.url);
-      const count = parseInt(url2.searchParams.get("count") || "1");
+    } else if (apiPath === "generate" && (request.method === "GET" || request.method === "POST")) {
       return generateNewNumbers(request, env);
     } else if (apiPath === "total-combinations" && request.method === "GET") {
       return getTotalCombinations(request, env);
@@ -33481,7 +33498,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-oYzsws/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-VLknFG/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -33516,7 +33533,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-oYzsws/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-VLknFG/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

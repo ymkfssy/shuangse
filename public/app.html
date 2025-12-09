@@ -357,6 +357,11 @@
                 <div class="number-container" id="generated-numbers">
                     <!-- 生成的号码将显示在这里 -->
                 </div>
+                <div class="batch-generate" style="margin: 20px 0;">
+                    <label for="batch-count">批量生成数量:</label>
+                    <input type="number" id="batch-count" min="1" max="10" value="1" style="padding: 8px; margin: 0 10px;">
+                    <button class="btn btn-primary" onclick="generateBatchNumbers()">批量生成</button>
+                </div>
                 <div class="btn-container">
                     <button class="btn btn-success" onclick="generateNumber()">生成新号码</button>
                     <button class="btn" onclick="crawlHistory()">获取最新数据</button>
@@ -389,11 +394,24 @@
         // 生成新号码
         async function generateNumber() {
             try {
-                const response = await fetch('/api/generate');
+                // 先获取用户信息，确认session是否有效
+                const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+                let response;
+                
+                // 支持GET和POST两种方式
+                response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ count: 1 })
+                });
+                
                 const result = await response.json();
                 
                 if (response.ok) {
-                    displayGeneratedNumber(result.numbers);
+                    // 单个号码时使用现有的显示方式
+                    displayGeneratedNumber(result.numbers[0]);
                     showMessage('号码生成成功！', 'success');
                 } else {
                     showMessage(result.error, 'error');
@@ -402,6 +420,123 @@
                 showMessage('生成号码失败，请稍后重试', 'error');
                 console.error('生成号码错误:', error);
             }
+        }
+        
+        // 批量生成号码
+        async function generateBatchNumbers() {
+            try {
+                const count = parseInt(document.getElementById('batch-count').value) || 1;
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ count: count })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    displayBatchNumbers(result.numbers);
+                    showMessage(`成功生成${result.numbers.length}组号码！`, 'success');
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('批量生成号码失败，请稍后重试', 'error');
+                console.error('批量生成号码错误:', error);
+            }
+        }
+
+        // 批量生成号码显示函数
+        function displayBatchNumbers(numbersList) {
+            const container = document.getElementById('generated-numbers');
+            container.innerHTML = '';
+            
+            // 如果只有一个号码，使用原来的显示方式
+            if (numbersList.length === 1) {
+                displayGeneratedNumber(numbersList[0]);
+                return;
+            }
+            
+            // 创建批量显示容器
+            const batchContainer = document.createElement('div');
+            batchContainer.className = 'batch-container';
+            
+            // 添加批量显示标题
+            const batchTitle = document.createElement('h3');
+            batchTitle.textContent = `批量生成的${numbersList.length}组号码`;
+            batchTitle.style.marginBottom = '20px';
+            batchContainer.appendChild(batchTitle);
+            
+            // 创建号码表格
+            const batchTable = document.createElement('table');
+            batchTable.className = 'batch-numbers-table';
+            batchTable.style.width = '100%';
+            batchTable.style.borderCollapse = 'collapse';
+            
+            // 创建表格头
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = `
+                <th style="padding: 10px; border: 1px solid #ddd; background-color: #f2f2f2;">序号</th>
+                <th style="padding: 10px; border: 1px solid #ddd; background-color: #f2f2f2;">红球</th>
+                <th style="padding: 10px; border: 1px solid #ddd; background-color: #f2f2f2;">蓝球</th>
+            `;
+            batchTable.appendChild(headerRow);
+            
+            // 遍历号码列表，创建表格行
+            numbersList.forEach((numbers, index) => {
+                const row = document.createElement('tr');
+                
+                // 确保所有号码都是两位数显示
+                const formattedRedNumbers = numbers.red.map(num => num.padStart(2, '0'));
+                const formattedBlueNumber = numbers.blue.padStart(2, '0');
+                
+                // 红球显示
+                const redCell = document.createElement('td');
+                redCell.style.padding = '10px';
+                redCell.style.border = '1px solid #ddd';
+                redCell.style.textAlign = 'center';
+                
+                formattedRedNumbers.forEach(redNum => {
+                    const redBall = document.createElement('span');
+                    redBall.className = 'red-ball';
+                    redBall.textContent = redNum;
+                    redBall.style.margin = '0 2px';
+                    redCell.appendChild(redBall);
+                });
+                
+                // 蓝球显示
+                const blueCell = document.createElement('td');
+                blueCell.style.padding = '10px';
+                blueCell.style.border = '1px solid #ddd';
+                blueCell.style.textAlign = 'center';
+                
+                const blueBall = document.createElement('span');
+                blueBall.className = 'blue-ball';
+                blueBall.textContent = formattedBlueNumber;
+                blueCell.appendChild(blueBall);
+                
+                // 序号单元格
+                const indexCell = document.createElement('td');
+                indexCell.style.padding = '10px';
+                indexCell.style.border = '1px solid #ddd';
+                indexCell.style.textAlign = 'center';
+                indexCell.style.fontWeight = 'bold';
+                indexCell.textContent = index + 1;
+                
+                // 添加到行
+                row.appendChild(indexCell);
+                row.appendChild(redCell);
+                row.appendChild(blueCell);
+                
+                // 添加到表格
+                batchTable.appendChild(row);
+            });
+            
+            // 添加到容器
+            batchContainer.appendChild(batchTable);
+            container.appendChild(batchContainer);
         }
 
         // 显示生成的号码

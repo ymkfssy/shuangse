@@ -29,24 +29,13 @@ export async function handleRegister(request, env) {
     // 哈希密码
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 检查是否有已存在的用户
-    const userCount = await db.prepare('SELECT COUNT(*) as count FROM users').first();
-    
-    // 第一个用户默认为管理员并自动批准
-    const isAdmin = userCount.count === 0 ? 1 : 0;
-    const isApproved = userCount.count === 0 ? 1 : 0;
-    
-    // 创建新用户
+    // 创建新用户 - 暂时只使用基础字段
     await db.prepare(
-      'INSERT INTO users (username, password, is_admin, is_approved) VALUES (?, ?, ?, ?)'
-    ).bind(username, hashedPassword, isAdmin, isApproved).run();
+      'INSERT INTO users (username, password) VALUES (?, ?)'
+    ).bind(username, hashedPassword).run();
     
     // 返回注册结果
-    const message = userCount.count === 0 
-      ? '注册成功，您是第一个用户，已自动成为管理员' 
-      : '注册成功，请等待管理员批准后登录';
-
-    return new Response(JSON.stringify({ success: true, message: message }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ success: true, message: '注册成功' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('注册失败:', error);
     return new Response(JSON.stringify({ error: `注册失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
@@ -72,10 +61,7 @@ export async function handleLogin(request, env) {
       return new Response(JSON.stringify({ error: '用户名或密码错误' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // 检查用户是否已被批准
-    if (!user.is_approved) {
-      return new Response(JSON.stringify({ error: '您的账号尚未被管理员批准，请稍后再试' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-    }
+    // 暂时不检查用户是否已被批准（数据库中可能没有该字段）
 
     // 验证密码
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -98,24 +84,23 @@ export async function handleLogin(request, env) {
     // 返回带有会话cookie的响应
     return new Response(JSON.stringify({ 
       success: true, 
-      message: '登录成功',
       user: {
         id: user.id,
         username: user.username,
-        is_admin: user.is_admin,
-        is_approved: user.is_approved
+        is_admin: false, // 暂时默认非管理员
+        is_approved: true // 暂时默认已批准
       }
     }), { 
       status: 200, 
       headers: {
         'Content-Type': 'application/json',
-        'Set-Cookie': cookie.serialize('session', sessionId, { 
+        'Set-Cookie': cookie.serialize('session_id', sessionId, { 
           httpOnly: true,
-          secure: request.url.startsWith('https://'),
+          secure: env.ENVIRONMENT === 'production' && request.url.startsWith('https://'),
           sameSite: 'strict',
-          path: '/',
-          maxAge: 86400 // 24小时
-        })
+          maxAge: 60 * 60 * 24,
+          path: '/' 
+        }) 
       } 
     });
   } catch (error) {
@@ -128,7 +113,7 @@ export async function handleLogin(request, env) {
 export async function handleLogout(request, env) {
   try {
     const cookies = cookie.parse(request.headers.get('Cookie') || '');
-    const sessionId = cookies.session;
+    const sessionId = cookies.session_id;
 
     if (sessionId) {
       // 从数据库中删除会话
@@ -140,7 +125,7 @@ export async function handleLogout(request, env) {
       status: 200, 
       headers: { 
         'Content-Type': 'application/json',
-        'Set-Cookie': 'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict'
+        'Set-Cookie': `session_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly;${env.ENVIRONMENT === 'production' ? ' Secure;' : ''} SameSite=Strict`
       } 
     });
   } catch (error) {
@@ -151,18 +136,35 @@ export async function handleLogout(request, env) {
 // 从会话中获取用户信息
 export async function getUserFromSession(request, env) {
   try {
-    const cookies = cookie.parse(request.headers.get('Cookie') || '');
-    const sessionId = cookies.session;
+    const cookieHeader = request.headers.get('Cookie') || '';
+    console.log('Cookie Header:', cookieHeader);
+    const cookies = cookie.parse(cookieHeader);
+    console.log('Parsed Cookies:', cookies);
+    let sessionId = cookies.session_id;
+    console.log('Session ID from cookie:', sessionId);
+    
+    // 临时添加调试选项，允许通过URL参数传递session_id
+    if (!sessionId) {
+      const url = new URL(request.url);
+      sessionId = url.searchParams.get('session_id');
+      console.log('Session ID from URL:', sessionId);
+    }
 
     if (!sessionId) {
       return null;
     }
 
-    // 查找有效的会话
+    // 查找有效的会话 - 暂时不查询is_admin和is_approved字段
     const db = getDB(env);
     const session = await db.prepare(
-      'SELECT s.*, u.id as user_id, u.username, u.is_admin, u.is_approved FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.session_id = ? AND s.expires_at > datetime("now")'
+      'SELECT s.*, u.id as user_id, u.username FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.session_id = ? AND s.expires_at > datetime("now")'
     ).bind(sessionId).first();
+
+    // 如果会话存在，添加默认的is_admin和is_approved字段
+    if (session) {
+      session.is_admin = false;
+      session.is_approved = true;
+    }
 
     return session;
   } catch (error) {

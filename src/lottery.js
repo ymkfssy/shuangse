@@ -278,8 +278,21 @@ export async function generateNewNumbers(request, env) {
     }
 
     // 获取生成数量参数，默认为1
-    const url = new URL(request.url);
-    const count = parseInt(url.searchParams.get('count') || '1');
+    let count = 1;
+    
+    // 同时支持GET和POST请求
+    if (request.method === 'GET') {
+      const url = new URL(request.url);
+      count = parseInt(url.searchParams.get('count') || '1');
+    } else if (request.method === 'POST') {
+      try {
+        const data = await request.json();
+        count = parseInt(data.count || '1');
+      } catch (e) {
+        // 如果POST请求体解析失败，使用默认值
+        count = 1;
+      }
+    }
     
     if (count < 1 || count > 10) {
       return new Response(JSON.stringify({ error: '生成数量必须在1-10之间' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
