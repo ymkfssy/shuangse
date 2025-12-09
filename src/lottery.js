@@ -112,8 +112,8 @@ export async function generateNewNumbers(request, env) {
       total: count
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
-        return new Response(JSON.stringify({ error: "生成号码失败: " + error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-    }
+    return new Response(JSON.stringify({ error: `生成号码失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
 }
 
 // 生成单个号码（兼容旧版本）
@@ -155,7 +155,7 @@ export async function getHistoryNumbers(request, env) {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('获取历史号码失败:', error);
-    return new Response(JSON.stringify({ error: "获取历史号码失败: " + error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: `获取历史号码失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
@@ -211,7 +211,7 @@ export async function getAllHistoryNumbers(request, env) {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('获取所有历史号码失败:', error);
-    return new Response(JSON.stringify({ error: "获取所有历史号码失败: " + error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: `获取所有历史号码失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
@@ -279,7 +279,7 @@ export async function getHistoryStats(request, env) {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('获取历史数据统计信息失败:', error);
-    return new Response(JSON.stringify({ error: "获取历史数据统计信息失败: " + error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: `获取历史数据统计信息失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
@@ -398,7 +398,7 @@ export async function importHistoryNumbers(request, env) {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('导入历史数据失败:', error);
-    return new Response(JSON.stringify({ error: "导入历史数据失败: " + error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: `导入历史数据失败: ${error.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
@@ -475,7 +475,7 @@ export async function crawlHistoryNumbers(request, env) {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     return new Response(JSON.stringify({ 
-      error: "爬取失败: " + error.message,
+      error: `爬取失败: ${error.message}`,
       stack: error.stack
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
@@ -486,7 +486,7 @@ async function tryOfficialAPI() {
   const apiUrl = 'https://6.17500.cn/?lottery=more&lotteryId=ssq';
   
   try {
-    console.log("尝试从6.17500.cn爬取数据: " + apiUrl);
+    console.log(`尝试从6.17500.cn爬取数据: ${apiUrl}`);
     
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -501,7 +501,7 @@ async function tryOfficialAPI() {
     const response = await fetch(apiUrl, { headers });
     
     if (!response.ok) {
-      console.log("6.17500.cn 返回错误状态: " + response.status + " " + response.statusText);
+      console.log(`6.17500.cn 返回错误状态: ${response.status} ${response.statusText}`);
       return [];
     }
     
@@ -573,7 +573,7 @@ function parse17500HTML(html) {
         
         // 确保期号是7位数字
         if (issue.length !== 7) {
-          console.log("跳过不合法期号: " + issue);
+          console.log(`跳过不合法期号: ${issue}`);
           continue;
         }
         
@@ -611,15 +611,15 @@ function parse17500HTML(html) {
             if (currentIssue > latestIssue) {
               latestIssue = currentIssue;
               latestResult = { issue, red, blue, date, redOrder };
-              console.log("找到最新期号: " + issue + ", 日期 " + date + ", 开奖号码: " + redOrder.join(' ') + " " + blue);
+              console.log(`找到最新期号: ${issue}, 日期 ${date}, 开奖号码: ${redOrder.join(' ')} ${blue}`);
               // 解析到最新一期后可以提前退出
               break;
             }
           } else {
-            console.log("号码范围验证失败: " + issue + " - 红球: " + red + ", 蓝球: " + blue);
+            console.log(`号码范围验证失败: ${issue} - 红球: ${red}, 蓝球: ${blue}`);
           }
         } else {
-          console.log("号码数量不符合预期: " + issue + " - 实际数量: " + numbers.length);
+          console.log(`号码数量不符合预期: ${issue} - 实际数量: ${numbers.length}`);
         }
         
         // 避免无限循环
@@ -635,9 +635,9 @@ function parse17500HTML(html) {
     // 如果找到最新一期，添加到结果
     if (latestResult) {
       results.push(latestResult);
-      console.log("解析完成，共处理 " + matchCount + " 个期号，只保留最新的一期: " + latestResult.issue);
+      console.log(`解析完成，共处理 ${matchCount} 个期号，只保留最新的一期: ${latestResult.issue}`);
     } else {
-        console.log("解析完成，共处理 " + matchCount + " 个期号，未找到有效记录");
+      console.log(`解析完成，共处理 ${matchCount} 个期号，未找到有效记录`);
     }
     
   } catch (e) {
@@ -674,7 +674,7 @@ function generateMockData() {
     // 确保期号是7位数字
     const issue = currentIssue.toString();
     if (issue.length !== 7) {
-      console.log("跳过不合法期号: " + issue);
+      console.log(`跳过不合法期号: ${issue}`);
       currentIssue--;
       continue;
     }

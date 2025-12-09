@@ -108,7 +108,7 @@ export async function initDatabase(env) {
     await env.DB.exec(INIT_SQL);
     return { success: true, message: 'Database initialized successfully' };
   } catch (error) {
-    return { success: false, message: "Database initialization failed: " + error.message };
+    return { success: false, message: `Database initialization failed: ${error.message}` };
   }
 }
 

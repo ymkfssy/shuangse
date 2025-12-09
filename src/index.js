@@ -88,8 +88,8 @@ async function handleRequest(request, env, ctx) {
     return new Response('Page not found', { status: 404 });
     
   } catch (e) {
-            return new Response("Server Error: " + e.message, { status: 500 });
-        }
+    return new Response(`Server Error: ${e.message}`, { status: 500 });
+  }
 }
 
 // 定时任务处理函数
@@ -414,7 +414,7 @@ function getHistoryHTML() {
         function showMessage(message, type) {
             const messageDiv = document.getElementById('message');
             messageDiv.textContent = message;
-            messageDiv.className = "message " + type;
+            messageDiv.className = `message ${type}`;
             messageDiv.style.display = 'block';
             setTimeout(() => {
                 messageDiv.style.display = 'none';
@@ -424,7 +424,7 @@ function getHistoryHTML() {
         // 获取历史数据
         async function getHistoryData(page = 1) {
             try {
-                const response = await fetch("/api/history?page=" + page + "&pageSize=" + pageSize);
+                const response = await fetch(`/api/history?page=${page}&pageSize=${pageSize}`);
                 const result = await response.json();
                 
                 if (response.ok) {
@@ -508,7 +508,7 @@ function getHistoryHTML() {
             
             for (let i = startPage; i <= endPage; i++) {
                 const pageBtn = document.createElement('button');
-                pageBtn.className = "page-btn " + (i === currentPage ? "active" : "");
+                pageBtn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
                 pageBtn.textContent = i;
                 pageBtn.onclick = () => getHistoryData(i);
                 pagination.appendChild(pageBtn);
