@@ -9,7 +9,7 @@ binding = "DB"
 database_id = "0213ff68-3f2d-43ca-9381-52cab401fc46"
 
 # 定时任务配置 - 每周一、周三、周五上午10点执行爬取任务
-[[triggers]]
+[triggers]
 crons = ["0 10 * * 1,3,5"]
 
 # 环境变量
