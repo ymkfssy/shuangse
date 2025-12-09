@@ -31245,11 +31245,24 @@ async function importHistoryFromExcel(request, env) {
       }
       let drawDate;
       try {
-        if (typeof row.\u65E5\u671F === "string") {
-          const datePart = row.\u65E5\u671F.split(" ")[0];
-          drawDate = new Date(datePart);
+        let dateStr = row.\u65E5\u671F;
+        if (typeof dateStr === "number") {
+          drawDate = new Date(dateStr);
+        } else if (typeof dateStr === "string") {
+          const datePart = dateStr.split(" ")[0];
+          const dateRegex = /^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/;
+          const match = datePart.match(dateRegex);
+          if (match) {
+            const [, year, month, day] = match;
+            const formattedMonth = String(month).padStart(2, "0");
+            const formattedDay = String(day).padStart(2, "0");
+            drawDate = /* @__PURE__ */ new Date(`${year}-${formattedMonth}-${formattedDay}`);
+          } else {
+            drawDate = new Date(datePart);
+          }
         } else {
-          drawDate = new Date(row.\u65E5\u671F);
+          skippedCount++;
+          continue;
         }
         if (isNaN(drawDate.getTime())) {
           skippedCount++;

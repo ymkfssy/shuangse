@@ -81,17 +81,39 @@ export async function importHistoryFromExcel(request, env) {
         continue;
       }
       
-      // 解析日期：确保只保留日期部分
+      // 解析日期：支持多种日期格式
       let drawDate;
       try {
-        // 如果是字符串，尝试直接解析
-        if (typeof row.日期 === 'string') {
+        let dateStr = row.日期;
+        
+        // 如果是数字（Excel日期格式），直接转换
+        if (typeof dateStr === 'number') {
+          drawDate = new Date(dateStr);
+        } else if (typeof dateStr === 'string') {
           // 移除时间部分（如果有）
-          const datePart = row.日期.split(' ')[0];
-          drawDate = new Date(datePart);
+          const datePart = dateStr.split(' ')[0];
+          
+          // 尝试解析多种日期格式
+          // 支持的格式：XXXX/XX/XX, XXXX/X/X, XXXX-XX-XX, XXXX-X-X
+          const dateRegex = /^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/;
+          const match = datePart.match(dateRegex);
+          
+          if (match) {
+            const [, year, month, day] = match;
+            // 确保月份和日期是两位数
+            const formattedMonth = String(month).padStart(2, '0');
+            const formattedDay = String(day).padStart(2, '0');
+            
+            // 创建标准格式的日期字符串
+            drawDate = new Date(`${year}-${formattedMonth}-${formattedDay}`);
+          } else {
+            // 尝试默认解析
+            drawDate = new Date(datePart);
+          }
         } else {
-          // 如果是数字（Excel日期格式），直接转换
-          drawDate = new Date(row.日期);
+          // 无法解析的日期类型
+          skippedCount++;
+          continue;
         }
         
         if (isNaN(drawDate.getTime())) {

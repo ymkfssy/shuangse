@@ -341,14 +341,21 @@
         // 获取历史数据
         async function getHistoryNumbers() {
             try {
-                const response = await fetch('/api/history?limit=20');
+                const response = await fetch('/api/history?limit=100');
                 const result = await response.json();
                 
                 if (response.ok) {
                     displayHistoryNumbers(result.numbers);
                     updateStats(result.numbers.length);
+                } else {
+                    // 服务器返回错误
+                    showMessage('获取历史数据失败: ' + (result.error || '未知错误'), 'error');
+                    document.getElementById('history-list').innerHTML = '<p>获取历史数据失败，请稍后重试</p>';
                 }
             } catch (error) {
+                // 网络或其他错误
+                showMessage('获取历史数据失败: ' + error.message, 'error');
+                document.getElementById('history-list').innerHTML = '<p>获取历史数据失败，请稍后重试</p>';
                 console.error('获取历史数据失败:', error);
             }
         }
