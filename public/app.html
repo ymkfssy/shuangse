@@ -218,6 +218,11 @@
                 <h3>待批准用户</h3>
                 <div id="pending-users-list"></div>
             </div>
+            <div id="data-maintenance" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ccc;">
+                <h3>数据维护</h3>
+                <button class="btn btn-warning" onclick="fixDrawDates()">修复开奖日期</button>
+                <p class="help-text">根据期号重新计算并修复所有历史开奖日期（基于周二、周四、周日开奖规则）</p>
+            </div>
         </div>
         <div class="card">
             <div class="stats">
@@ -445,6 +450,29 @@
             }
         }
         
+        // 修复开奖日期
+        async function fixDrawDates() {
+            try {
+                if (!confirm('确定要修复所有历史开奖日期吗？此操作将根据周二、周四、周日的开奖规则重新计算所有期号的日期。')) {
+                    return;
+                }
+                
+                const response = await fetch('/api/admin/fix-draw-dates', { method: 'POST' });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(result.message, 'success');
+                    // 修复成功后重新加载历史数据
+                    await getHistoryNumbers();
+                } else {
+                    showMessage(result.error || '修复失败', 'error');
+                }
+            } catch (error) {
+                console.error('修复开奖日期失败:', error);
+                showMessage('修复开奖日期失败', 'error');
+            }
+        }
+
         // 加载待批准用户列表
         async function loadPendingUsers() {
             try {
