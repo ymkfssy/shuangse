@@ -31183,6 +31183,15 @@ async function importHistoryFromExcel(request, env) {
       }
       const redBalls = [row.\u7EA2\u74031, row.\u7EA2\u74032, row.\u7EA2\u74033, row.\u7EA2\u74034, row.\u7EA2\u74035, row.\u7EA2\u74036];
       const sortedReds = [...redBalls].sort((a, b) => a - b);
+      const redBallsOrder = [];
+      for (let i = 1; i <= 6; i++) {
+        const orderKey = `\u7EA2\u7403\u987A\u5E8F${i}`;
+        if (row[orderKey] !== void 0) {
+          redBallsOrder.push(row[orderKey]);
+        } else {
+          redBallsOrder.push(redBalls[i - 1]);
+        }
+      }
       const existing = await db.prepare(
         "SELECT id FROM lottery_history WHERE issue_number = ?"
       ).bind(row.\u671F\u53F7).first();
@@ -31195,8 +31204,8 @@ async function importHistoryFromExcel(request, env) {
           issue_number, draw_date, 
           red_1, red_2, red_3, red_4, red_5, red_6, 
           red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
-          blue, prize_pool
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          blue
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         row.\u671F\u53F7,
         drawDate.toISOString(),
@@ -31206,14 +31215,13 @@ async function importHistoryFromExcel(request, env) {
         sortedReds[3],
         sortedReds[4],
         sortedReds[5],
-        redBalls[0],
-        redBalls[1],
-        redBalls[2],
-        redBalls[3],
-        redBalls[4],
-        redBalls[5],
-        row.\u84DD\u7403,
-        row.\u5956\u6C60\u91D1\u989D || null
+        redBallsOrder[0],
+        redBallsOrder[1],
+        redBallsOrder[2],
+        redBallsOrder[3],
+        redBallsOrder[4],
+        redBallsOrder[5],
+        row.\u84DD\u7403
       ).run();
       importedCount++;
     }
@@ -32518,8 +32526,18 @@ function getAppHTML() {
         function downloadTemplate() {
             // \u521B\u5EFAExcel\u6A21\u677F\u6570\u636E
             const templateData = [
-                { '\u671F\u53F7': '2024001', '\u65E5\u671F': '2024-01-01', '\u7EA2\u74031': 1, '\u7EA2\u74032': 2, '\u7EA2\u74033': 3, '\u7EA2\u74034': 4, '\u7EA2\u74035': 5, '\u7EA2\u74036': 6, '\u84DD\u7403': 1, '\u5956\u6C60\u91D1\u989D': 100000000 },
-                { '\u671F\u53F7': '2024002', '\u65E5\u671F': '2024-01-04', '\u7EA2\u74031': 7, '\u7EA2\u74032': 8, '\u7EA2\u74033': 9, '\u7EA2\u74034': 10, '\u7EA2\u74035': 11, '\u7EA2\u74036': 12, '\u84DD\u7403': 2, '\u5956\u6C60\u91D1\u989D': 120000000 }
+                { 
+                    '\u671F\u53F7': '2024001', '\u65E5\u671F': '2024-01-01', 
+                    '\u7EA2\u74031': 1, '\u7EA2\u74032': 2, '\u7EA2\u74033': 3, '\u7EA2\u74034': 4, '\u7EA2\u74035': 5, '\u7EA2\u74036': 6, 
+                    '\u7EA2\u7403\u987A\u5E8F1': 3, '\u7EA2\u7403\u987A\u5E8F2': 5, '\u7EA2\u7403\u987A\u5E8F3': 1, '\u7EA2\u7403\u987A\u5E8F4': 6, '\u7EA2\u7403\u987A\u5E8F5': 2, '\u7EA2\u7403\u987A\u5E8F6': 4,
+                    '\u84DD\u7403': 1 
+                },
+                { 
+                    '\u671F\u53F7': '2024002', '\u65E5\u671F': '2024-01-04', 
+                    '\u7EA2\u74031': 7, '\u7EA2\u74032': 8, '\u7EA2\u74033': 9, '\u7EA2\u74034': 10, '\u7EA2\u74035': 11, '\u7EA2\u74036': 12, 
+                    '\u7EA2\u7403\u987A\u5E8F1': 12, '\u7EA2\u7403\u987A\u5E8F2': 10, '\u7EA2\u7403\u987A\u5E8F3': 8, '\u7EA2\u7403\u987A\u5E8F4': 11, '\u7EA2\u7403\u987A\u5E8F5': 7, '\u7EA2\u7403\u987A\u5E8F6': 9,
+                    '\u84DD\u7403': 2 
+                }
             ];
             
             // \u521B\u5EFA\u5DE5\u4F5C\u7C3F\u548C\u5DE5\u4F5C\u8868
@@ -32537,8 +32555,13 @@ function getAppHTML() {
                 { wch: 8 },  // \u7EA2\u74034
                 { wch: 8 },  // \u7EA2\u74035
                 { wch: 8 },  // \u7EA2\u74036
-                { wch: 8 },  // \u84DD\u7403
-                { wch: 12 }  // \u5956\u6C60\u91D1\u989D
+                { wch: 10 }, // \u7EA2\u7403\u987A\u5E8F1
+                { wch: 10 }, // \u7EA2\u7403\u987A\u5E8F2
+                { wch: 10 }, // \u7EA2\u7403\u987A\u5E8F3
+                { wch: 10 }, // \u7EA2\u7403\u987A\u5E8F4
+                { wch: 10 }, // \u7EA2\u7403\u987A\u5E8F5
+                { wch: 10 }, // \u7EA2\u7403\u987A\u5E8F6
+                { wch: 8 }   // \u84DD\u7403
             ];
             
             // \u4E0B\u8F7D\u6587\u4EF6

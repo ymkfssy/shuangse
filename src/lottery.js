@@ -68,9 +68,20 @@ export async function importHistoryFromExcel(request, env) {
         continue;
       }
       
-      // 提取红球数据（支持出球顺序）
+      // 提取红球数据
       const redBalls = [row.红球1, row.红球2, row.红球3, row.红球4, row.红球5, row.红球6];
       const sortedReds = [...redBalls].sort((a, b) => a - b);
+      
+      // 提取红球出球顺序（优先使用红球顺序字段，如果没有则使用红球1-6的顺序）
+      const redBallsOrder = [];
+      for (let i = 1; i <= 6; i++) {
+        const orderKey = `红球顺序${i}`;
+        if (row[orderKey] !== undefined) {
+          redBallsOrder.push(row[orderKey]);
+        } else {
+          redBallsOrder.push(redBalls[i-1]);
+        }
+      }
       
       // 检查是否已存在
       const existing = await db.prepare(
@@ -88,13 +99,13 @@ export async function importHistoryFromExcel(request, env) {
           issue_number, draw_date, 
           red_1, red_2, red_3, red_4, red_5, red_6, 
           red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
-          blue, prize_pool
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          blue
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         row.期号, drawDate.toISOString(),
         sortedReds[0], sortedReds[1], sortedReds[2], sortedReds[3], sortedReds[4], sortedReds[5],
-        redBalls[0], redBalls[1], redBalls[2], redBalls[3], redBalls[4], redBalls[5],
-        row.蓝球, row.奖池金额 || null
+        redBallsOrder[0], redBallsOrder[1], redBallsOrder[2], redBallsOrder[3], redBallsOrder[4], redBallsOrder[5],
+        row.蓝球
       ).run();
       
       importedCount++;
