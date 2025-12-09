@@ -65,12 +65,17 @@ export async function importHistoryFromExcel(request, env) {
         continue;
       }
       
-      // 处理期号：确保是7位数字，没有小数点
+      // 处理期号：支持5-6位和7位数字格式，统一转换为7位格式（如25141→2025141）
       let issueNumber = String(row.期号);
       // 移除可能的小数点和小数部分
       issueNumber = issueNumber.replace(/\..*/, '');
-      // 确保是7位数字
-      if (!/^\d{7}$/.test(issueNumber)) {
+      
+      // 处理期号格式：如果是5-6位数字，添加"20"前缀使其成为7位
+      if (/^\d{5,6}$/.test(issueNumber)) {
+        // 对于5-6位数字（如25141表示2025年第141期），添加"20"前缀
+        issueNumber = "20" + issueNumber;
+      } else if (!/^\d{7}$/.test(issueNumber)) {
+        // 不是5-7位数字的期号，跳过
         skippedCount++;
         continue;
       }
