@@ -37,62 +37,58 @@ export async function importHistoryFromExcel(request, env) {
     let importedCount = 0;
     let skippedCount = 0;
     
-    // 批量插入数据
-    await db.batch(async (txn) => {
-      for (const row of jsonData) {
-        // 检查必要字段
-        if (!row.期号 || !row.日期 || !row.红球1 || !row.红球2 || !row.红球3 || !row.红球4 || !row.红球5 || !row.红球6 || !row.蓝球) {
-          skippedCount++;
-          continue;
-        }
-        
-        // 解析日期
-        let drawDate;
-        try {
-          drawDate = new Date(row.日期);
-          if (isNaN(drawDate.getTime())) {
-            skippedCount++;
-            continue;
-          }
-        } catch (error) {
-          skippedCount++;
-          continue;
-        }
-        
-        // 提取红球数据（支持出球顺序）
-        const redBalls = [row.红球1, row.红球2, row.红球3, row.红球4, row.红球5, row.红球6];
-        const sortedReds = [...redBalls].sort((a, b) => a - b);
-        
-        // 检查是否已存在
-        const existing = await txn.exec(
-          'SELECT id FROM lottery_history WHERE issue_number = ?',
-          [row.期号]
-        );
-        
-        if (existing.results.length > 0) {
-          skippedCount++;
-          continue;
-        }
-        
-        // 插入数据
-        await txn.exec(
-          `INSERT INTO lottery_history (
-            issue_number, draw_date, 
-            red_1, red_2, red_3, red_4, red_5, red_6, 
-            red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
-            blue, jackpot_amount
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            row.期号, drawDate.toISOString(),
-            sortedReds[0], sortedReds[1], sortedReds[2], sortedReds[3], sortedReds[4], sortedReds[5],
-            redBalls[0], redBalls[1], redBalls[2], redBalls[3], redBalls[4], redBalls[5],
-            row.蓝球, row.奖池金额 || null
-          ]
-        );
-        
-        importedCount++;
+    // 不再使用batch方法，改为直接执行SQL语句（Cloudflare Workers D1的batch API与我们的用法不兼容）
+    for (const row of jsonData) {
+      // 检查必要字段
+      if (!row.期号 || !row.日期 || !row.红球1 || !row.红球2 || !row.红球3 || !row.红球4 || !row.红球5 || !row.红球6 || !row.蓝球) {
+        skippedCount++;
+        continue;
       }
-    });
+      
+      // 解析日期
+      let drawDate;
+      try {
+        drawDate = new Date(row.日期);
+        if (isNaN(drawDate.getTime())) {
+          skippedCount++;
+          continue;
+        }
+      } catch (error) {
+        skippedCount++;
+        continue;
+      }
+      
+      // 提取红球数据（支持出球顺序）
+      const redBalls = [row.红球1, row.红球2, row.红球3, row.红球4, row.红球5, row.红球6];
+      const sortedReds = [...redBalls].sort((a, b) => a - b);
+      
+      // 检查是否已存在
+      const existing = await db.prepare(
+        'SELECT id FROM lottery_history WHERE issue_number = ?'
+      ).bind(row.期号).first();
+      
+      if (existing) {
+        skippedCount++;
+        continue;
+      }
+      
+      // 插入数据
+      await db.prepare(
+        `INSERT INTO lottery_history (
+          issue_number, draw_date, 
+          red_1, red_2, red_3, red_4, red_5, red_6, 
+          red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
+          blue, prize_pool
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        row.期号, drawDate.toISOString(),
+        sortedReds[0], sortedReds[1], sortedReds[2], sortedReds[3], sortedReds[4], sortedReds[5],
+        redBalls[0], redBalls[1], redBalls[2], redBalls[3], redBalls[4], redBalls[5],
+        row.蓝球, row.奖池金额 || null
+      ).run();
+      
+      importedCount++;
+    }
     
     return new Response(JSON.stringify({
       success: true,
@@ -394,11 +390,156 @@ async function tryOfficialAPI() {
   return [];
 }
 
-// 尝试第三方数据源 - 保留作为备份
+// 尝试第三方数据源 - 添加几个可靠的备选数据源
 async function tryThirdPartySources() {
-  // 暂时返回空数组，如果6.17500.cn失败可以考虑添加其他数据源
-  console.log('已禁用所有第三方数据源');
+  // 尝试从多个数据源获取数据，确保能获取到红球出球顺序
+  console.log('开始尝试第三方数据源...');
+  
+  // 可以尝试添加以下数据源（需要测试其可靠性）：
+  // 1. 乐彩网 - 提供完整的红球出球顺序
+  // 2. 彩经网 - 提供详细的开奖信息
+  // 3. 彩票之家 - 提供完整的历史数据
+  
+  // 当前暂时只启用乐彩网作为备份数据源
+  const results = [];
+  
+  // 尝试乐彩网的另一个接口
+  const lecaiResult = await tryLecaiAPI();
+  if (lecaiResult && lecaiResult.length > 0) {
+    console.log(`从乐彩网获取到 ${lecaiResult.length} 条数据`);
+    results.push(...lecaiResult);
+  }
+  
+  // 尝试其他数据源可以在这里添加
+  
+  return results;
+}
+
+// 尝试从乐彩网API获取数据
+async function tryLecaiAPI() {
+  const apiUrl = 'https://www.17500.cn/awardlist/ssq/1.html';
+  
+  try {
+    console.log(`尝试从乐彩网获取数据: ${apiUrl}`);
+    
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Referer': 'https://www.17500.cn/ssq/',
+      'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3'
+    };
+    
+    // 添加随机延迟
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    
+    const response = await fetch(apiUrl, { headers });
+    
+    if (!response.ok) {
+      console.log(`乐彩网返回错误状态: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    
+    const html = await response.text();
+    
+    // 解析乐彩网的HTML内容
+    const results = parseLecaiHTML(html);
+    if (results.length > 0) {
+      console.log(`从乐彩网成功解析 ${results.length} 条数据`);
+      return results;
+    } else {
+      console.log(`从乐彩网解析数据为空`);
+    }
+  } catch (error) {
+    console.error(`乐彩网请求失败:`, error);
+  }
+  
   return [];
+}
+
+// 解析乐彩网的HTML内容
+function parseLecaiHTML(html) {
+  console.log('开始解析乐彩网的HTML内容');
+  const results = [];
+  
+  try {
+    // 查找包含开奖记录的表格
+    const tableMatch = html.match(/<table[^>]*id="table1"[^>]*>([\s\S]*?)<\/table>/);
+    
+    if (!tableMatch) {
+      console.log('未找到包含开奖记录的表格');
+      return results;
+    }
+    
+    const tableContent = tableMatch[1];
+    
+    // 查找所有的开奖记录行
+    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+    let rowMatch;
+    
+    let count = 0;
+    while ((rowMatch = rowPattern.exec(tableContent)) !== null && count < 1) {
+      const row = rowMatch[1];
+      
+      // 跳过表头行
+      if (row.includes('class="td_title"') || row.includes('class="td_head"')) {
+        continue;
+      }
+      
+      try {
+        // 提取期号
+        const issueMatch = row.match(/<td[^>]*>(?:<[^>]*>)*第(\d{4}\d{3})期(?:<[^>]*>)*<\/td>/);
+        if (!issueMatch) continue;
+        
+        const issue = issueMatch[1];
+        
+        // 提取日期
+        const dateMatch = row.match(/<td[^>]*>(\d{4}-\d{2}-\d{2})<\/td>/);
+        if (!dateMatch) continue;
+        
+        const date = dateMatch[1];
+        
+        // 提取红球号码（出球顺序）
+        const redBallPattern = /<td[^>]*class="[^>]*red[^>]*"[^>]*>([\d]{1,2})<\/td>/g;
+        let redBalls = [];
+        let redBallMatch;
+        
+        while ((redBallMatch = redBallPattern.exec(row)) !== null) {
+          redBalls.push(parseInt(redBallMatch[1]));
+          if (redBalls.length === 6) break;
+        }
+        
+        if (redBalls.length !== 6) continue;
+        
+        // 提取蓝球
+        const blueBallMatch = row.match(/<td[^>]*class="[^>]*blue[^>]*"[^>]*>([\d]{1,2})<\/td>/);
+        if (!blueBallMatch) continue;
+        
+        const blue = parseInt(blueBallMatch[1]);
+        
+        // 排序后的红球
+        const sortedReds = [...redBalls].sort((a, b) => a - b);
+        
+        results.push({
+          issue,
+          red: sortedReds,
+          redOrder: redBalls, // 红球出球顺序
+          blue,
+          date
+        });
+        
+        count++;
+        console.log(`从乐彩网解析到最新数据: ${issue} ${date} ${redBalls.join(' ')} ${blue}`);
+        
+      } catch (e) {
+        console.error(`解析乐彩网数据行失败:`, e);
+      }
+    }
+    
+  } catch (e) {
+    console.error(`解析乐彩网HTML失败:`, e);
+  }
+  
+  return results;
 }
 
 // 解析6.17500.cn网站的HTML内容，只返回最新的一期开奖结果

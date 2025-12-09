@@ -299,7 +299,7 @@ function getAppHTML() {
                     <p>请选择生成数量并点击"生成新号码"</p>
                 </div>
                 <button class="btn btn-success" onclick="generateNumber()">生成新号码</button>
-                <button class="btn" onclick="crawlHistory()">更新历史数据</button>
+                <button class="btn" onclick="crawlHistory()">获取最新数据</button>
             </div>
 
             <div style="margin-bottom: 30px; padding: 20px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 4px;">
@@ -492,7 +492,7 @@ function getAppHTML() {
                     showMessage(result.error, 'error');
                 }
             } catch (error) {
-                showMessage('更新历史数据失败', 'error');
+                showMessage('获取最新数据失败', 'error');
             }
         }
 

@@ -203,7 +203,7 @@
                     <!-- 生成的号码将显示在这里 -->
                 </div>
                 <button class="btn btn-success" onclick="generateNumber()">生成新号码</button>
-                <button class="btn" onclick="crawlHistory()">更新历史数据</button>
+                <button class="btn" onclick="crawlHistory()">获取最新数据</button>
             </div>
 
             <div class="history-container">
@@ -329,12 +329,12 @@
                 
                 if (response.ok) {
                     showMessage(result.message, 'success');
-                    getHistoryNumbers(); // 更新历史数据显示
+                    getHistoryNumbers(); // 获取最新数据显示
                 } else {
                     showMessage(result.error, 'error');
                 }
             } catch (error) {
-                showMessage('更新历史数据失败', 'error');
+                showMessage('获取最新数据失败', 'error');
             }
         }
 
