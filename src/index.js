@@ -1,6 +1,6 @@
 // import { getAssetFromKV } from '@cloudflare/kv-asset-handler';  // 暂时注释掉，避免KV依赖
 import { handleLogin, handleRegister, handleLogout, isAuthenticated, getUserFromSession } from './auth.js';
-import { getHistoryNumbers, getAllHistoryNumbers, getHistoryStats, importHistoryNumbers, generateNewNumber, generateNewNumbers, crawlHistoryNumbers } from './lottery.js';
+import { getHistoryNumbers, generateNewNumber, generateNewNumbers, crawlHistoryNumbers } from './lottery.js';
 import { initDatabase, getDB } from './database.js';
 
 // 处理HTTP请求
@@ -9,7 +9,7 @@ async function handleRequest(request, env, ctx) {
   const pathname = url.pathname;
 
   // 检查是否需要身份验证
-  const requiresAuth = ['/app', '/api/generate', '/api/history', '/api/crawl', '/api/history/all', '/api/history/stats', '/api/history/import'].includes(pathname);
+  const requiresAuth = ['/app', '/api/generate', '/api/history', '/api/crawl'].includes(pathname);
   if (requiresAuth && !await isAuthenticated(request, env)) {
     return new Response(JSON.stringify({ error: '请先登录' }), { 
       status: 401, 
@@ -29,12 +29,6 @@ async function handleRequest(request, env, ctx) {
       return handleLogout(request, env);
     } else if (apiPath === 'history' && request.method === 'GET') {
       return getHistoryNumbers(request, env);
-    } else if (apiPath === 'history/all' && request.method === 'GET') {
-      return getAllHistoryNumbers(request, env);
-    } else if (apiPath === 'history/stats' && request.method === 'GET') {
-      return getHistoryStats(request, env);
-    } else if (apiPath === 'history/import' && request.method === 'POST') {
-      return importHistoryNumbers(request, env);
     } else if (apiPath === 'generate' && request.method === 'GET') {
       // 支持批量生成，通过count参数控制生成数量
       const url = new URL(request.url);
@@ -47,19 +41,6 @@ async function handleRequest(request, env, ctx) {
       }
     } else if (apiPath === 'crawl' && request.method === 'POST') {
       return crawlHistoryNumbers(request, env);
-    } else if (apiPath === 'history/template' && request.method === 'GET') {
-      const templatePath = 'migrations/history_import_template.csv';
-      if (await Deno.stat(templatePath).then(() => true).catch(() => false)) {
-        const file = await Deno.readFile(templatePath);
-        return new Response(file, {
-          headers: {
-            'Content-Type': 'text/csv',
-            'Content-Disposition': 'attachment; filename="history_import_template.csv"'
-          }
-        });
-      } else {
-        return new Response(JSON.stringify({ error: '模板文件不存在' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
-      }
     }
     
     return new Response('Not Found', { status: 404 });
@@ -76,14 +57,6 @@ async function handleRequest(request, env, ctx) {
     
     if (pathname === '/login.html' || pathname === '/login' || pathname === '/') {
       return new Response(getLoginHTML(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8' }
-      });
-    }
-    
-    if (pathname === '/history.html' || pathname === '/history') {
-      // 重定向到静态文件
-      const historyHTML = await Deno.readTextFile('public/history.html');
-      return new Response(historyHTML, {
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
       });
     }
