@@ -61,15 +61,7 @@ shuangse-lottery/
 
 2. 更新`wrangler.toml`文件中的`database_id`为实际的数据库ID
 
-### 3. KV配置
 
-1. 创建KV命名空间:
-   ```bash
-   wrangler kv:namespace create SESSION_KV
-   wrangler kv:namespace create SESSION_KV --preview
-   ```
-
-2. 更新`wrangler.toml`文件中的`id`和`preview_id`
 
 ### 4. 本地开发
 

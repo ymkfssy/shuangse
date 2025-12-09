@@ -85,30 +85,7 @@ npx wrangler d1 execute shuangse-lottery-db --file=./migrations/complete_schema.
 
 该命令会创建系统所需的所有数据库表和结构。
 
-## KV 命名空间配置
 
-### 1. 创建 KV 命名空间
-
-```bash
-# 创建生产环境 KV 命名空间
-npx wrangler kv:namespace create SESSION_KV
-
-# 创建预览环境 KV 命名空间
-npx wrangler kv:namespace create SESSION_KV --preview
-```
-
-执行命令后，会返回 KV 命名空间的 ID，记录下 `id` 和 `preview_id`。
-
-### 2. 更新配置文件
-
-编辑 `wrangler.toml` 文件，添加 KV 命名空间配置：
-
-```toml
-[[kv_namespaces]]
-binding = "SESSION_KV"
-id = "你的生产环境KV命名空间ID"
-preview_id = "你的预览环境KV命名空间ID"
-```
 
 ## 本地开发与测试
 
