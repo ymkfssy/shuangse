@@ -40,9 +40,6 @@ CREATE TABLE IF NOT EXISTS lottery_history (
   red_6_order INTEGER NOT NULL,
   blue INTEGER NOT NULL,
   draw_date DATE NOT NULL,
-  prize_pool TEXT,
-  first_prize_count INTEGER,
-  first_prize_amount TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
