@@ -1,5 +1,115 @@
 import { getDB } from './database.js';
 import { getUserFromSession } from './auth.js';
+import * as XLSX from 'xlsx';
+
+// 解析Excel文件并导入历史数据
+export async function importHistoryFromExcel(request, env) {
+  try {
+    // 解析表单数据
+    const formData = await request.formData();
+    const file = formData.get('file');
+    
+    if (!file) {
+      return new Response(JSON.stringify({ success: false, error: '请选择要上传的Excel文件' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 读取文件内容
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    
+    // 获取第一个工作表
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    
+    // 验证数据格式
+    if (!Array.isArray(jsonData) || jsonData.length === 0) {
+      return new Response(JSON.stringify({ success: false, error: 'Excel文件中没有数据或格式不正确' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 获取数据库连接
+    const db = await getDB(env);
+    let importedCount = 0;
+    let skippedCount = 0;
+    
+    // 批量插入数据
+    await db.batch(async (txn) => {
+      for (const row of jsonData) {
+        // 检查必要字段
+        if (!row.期号 || !row.日期 || !row.红球1 || !row.红球2 || !row.红球3 || !row.红球4 || !row.红球5 || !row.红球6 || !row.蓝球) {
+          skippedCount++;
+          continue;
+        }
+        
+        // 解析日期
+        let drawDate;
+        try {
+          drawDate = new Date(row.日期);
+          if (isNaN(drawDate.getTime())) {
+            skippedCount++;
+            continue;
+          }
+        } catch (error) {
+          skippedCount++;
+          continue;
+        }
+        
+        // 提取红球数据（支持出球顺序）
+        const redBalls = [row.红球1, row.红球2, row.红球3, row.红球4, row.红球5, row.红球6];
+        const sortedReds = [...redBalls].sort((a, b) => a - b);
+        
+        // 检查是否已存在
+        const existing = await txn.exec(
+          'SELECT id FROM lottery_history WHERE issue_number = ?',
+          [row.期号]
+        );
+        
+        if (existing.results.length > 0) {
+          skippedCount++;
+          continue;
+        }
+        
+        // 插入数据
+        await txn.exec(
+          `INSERT INTO lottery_history (
+            issue_number, draw_date, 
+            red_1, red_2, red_3, red_4, red_5, red_6, 
+            red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
+            blue, jackpot_amount
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            row.期号, drawDate.toISOString(),
+            sortedReds[0], sortedReds[1], sortedReds[2], sortedReds[3], sortedReds[4], sortedReds[5],
+            redBalls[0], redBalls[1], redBalls[2], redBalls[3], redBalls[4], redBalls[5],
+            row.蓝球, row.奖池金额 || null
+          ]
+        );
+        
+        importedCount++;
+      }
+    });
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: `成功导入 ${importedCount} 条数据，跳过 ${skippedCount} 条数据（格式错误或已存在）`
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('导入Excel失败:', error);
+    return new Response(JSON.stringify({ success: false, error: `导入失败: ${error.message}` }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
 
 // 随机User-Agent列表，避免被反爬虫机制识别
 
@@ -144,7 +254,11 @@ export async function getHistoryNumbers(request, env) {
     // 使用传递进来的env参数，而不是request.env
     const db = getDB(env);
     const results = await db.prepare(
-      `SELECT * FROM lottery_history 
+      `SELECT id, issue_number, draw_date, 
+              red_1, red_2, red_3, red_4, red_5, red_6, 
+              red_1_order, red_2_order, red_3_order, red_4_order, red_5_order, red_6_order,
+              blue, jackpot_amount
+       FROM lottery_history 
        ORDER BY issue_number DESC 
        LIMIT ? OFFSET ?`
     ).bind(limit, offset).all();
