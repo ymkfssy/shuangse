@@ -16,8 +16,8 @@ crons = ["0 10 * * *"]
 # KV命名空间配置
 [[kv_namespaces]]
 binding = "SESSION_KV"
-id = "your-production-kv-id"
-preview_id = "your-preview-kv-id"
+id = "e80bc4cfcc7f4a6d9c28bd50d4225cfe"
+preview_id = "0a80e18ff0f044d4b630a1a3bb55215d"
 
 # 环境变量
 [vars]
