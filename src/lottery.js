@@ -86,9 +86,15 @@ export async function importHistoryFromExcel(request, env) {
       try {
         let dateStr = row.日期;
         
-        // 如果是数字（Excel日期格式），直接转换
+        // 如果是数字（Excel日期格式），需要特殊处理
         if (typeof dateStr === 'number') {
-          drawDate = new Date(dateStr);
+          // Excel日期是从1900年1月1日开始的天数
+          // JavaScript Date是从1970年1月1日开始的毫秒数
+          // 需要转换Excel日期到JavaScript Date
+          // 注意：Excel将1900年2月29日视为有效日期（实际上1900年不是闰年）
+          const excelEpoch = new Date(1900, 0, 1); // 1900年1月1日
+          const daysToAdd = dateStr - 2; // Excel日期从1开始，减去2天（因为Excel错误地将1900年视为闰年）
+          drawDate = new Date(excelEpoch.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
         } else if (typeof dateStr === 'string') {
           // 移除时间部分（如果有）
           const datePart = dateStr.split(' ')[0];
