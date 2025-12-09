@@ -2,6 +2,16 @@ import { getDB } from './database.js';
 import { getUserFromSession } from './auth.js';
 import * as XLSX from 'xlsx';
 
+// 用户代理列表，用于模拟不同的浏览器请求
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Edg/125.0.2535.85',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Edg/124.0.2478.100'
+];
+
 // 解析Excel文件并导入历史数据
 export async function importHistoryFromExcel(request, env) {
   try {
@@ -348,18 +358,134 @@ export async function crawlHistoryNumbers(request, env) {
   }
 }
 
-// 尝试从6.17500.cn爬取数据
+// 从中国福利彩票官网爬取数据
 async function tryOfficialAPI() {
-  const apiUrl = 'https://6.17500.cn/?lottery=more&lotteryId=ssq';
+  // 中国福利彩票官网双色球开奖信息页面
+  const apiUrl = 'https://www.cwl.gov.cn/ygkj/wqkjgg/yizhong/ssq/';
+  
+  // 改进的请求头，更接近真实浏览器
+  const options = {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+      'Host': 'www.cwl.gov.cn',
+      'Origin': 'https://www.cwl.gov.cn',
+      'Referer': 'https://www.cwl.gov.cn/',
+      'Cache-Control': 'max-age=0',
+      'DNT': '1',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-User': '?1',
+      'Sec-Ch-Ua': '"Not/A)Brand";v="99", "Google Chrome";v="125", "Chromium";v="125"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"'
+    },
+    redirect: 'follow', // 自动跟随重定向
+    credentials: 'include' // 包含凭证信息
+  };
+
+  console.log('正在尝试从中国福利彩票官网获取数据...');
+  console.log(`请求URL: ${apiUrl}`);
+
+  try {
+    // 添加随机延迟
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    
+    const response = await fetch(apiUrl, options);
+    
+    console.log(`响应状态码: ${response.status} ${response.statusText}`);
+    console.log(`响应URL: ${response.url}`);
+    
+    if (!response.ok) {
+      // 即使状态码不是200，也尝试解析内容
+      const html = await response.text();
+      console.log(`响应内容: ${html.substring(0, 500)}...`);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const html = await response.text();
+    console.log('获取到HTML内容长度:', html.length);
+    
+    // 尝试解析HTML
+    const results = parseCWLHTML(html);
+    if (results.length > 0) {
+      console.log(`从中国福利彩票官网成功解析 ${results.length} 条数据`);
+      return results;
+    } else {
+      console.log(`从中国福利彩票官网解析数据为空`);
+    }
+  } catch (error) {
+    console.error(`从中国福利彩票官网获取数据失败: ${error.message}`);
+    console.error('错误详情:', error);
+  }
+  
+  return [];
+}
+
+// 尝试第三方数据源 - 添加几个可靠的备选数据源
+async function tryThirdPartySources() {
+  console.log('尝试从第三方数据源获取双色球历史开奖数据');
   
   try {
-    console.log(`尝试从6.17500.cn爬取数据: ${apiUrl}`);
+    // 尝试500彩票网
+    console.log('尝试获取500彩票网数据');
+    const lottery500Data = await try500LotteryAPI();
+    if (lottery500Data.length > 0) {
+      console.log(`从500彩票网获取到 ${lottery500Data.length} 条数据`);
+      return lottery500Data;
+    }
+    
+    // 尝试中彩网
+    console.log('尝试获取中彩网数据');
+    const zcwData = await tryZcwAPI();
+    if (zcwData.length > 0) {
+      console.log(`从中彩网获取到 ${zcwData.length} 条数据`);
+      return zcwData;
+    }
+    
+    // 尝试中国竞彩网
+    console.log('尝试获取中国竞彩网数据');
+    const sportteryData = await trySportteryAPI();
+    if (sportteryData.length > 0) {
+      console.log(`从中国竞彩网获取到 ${sportteryData.length} 条数据`);
+      return sportteryData;
+    }
+    
+    // 尝试乐彩网
+    console.log('尝试获取乐彩网数据');
+    const lecaiData = await tryLecaiAPI();
+    if (lecaiData.length > 0) {
+      console.log(`从乐彩网获取到 ${lecaiData.length} 条数据`);
+      return lecaiData;
+    }
+    
+    console.log('所有第三方数据源都获取失败');
+    return [];
+  } catch (error) {
+    console.error('第三方数据源获取数据异常:', error);
+    return [];
+  }
+}
+
+// 尝试从中国竞彩网API获取数据
+async function trySportteryAPI() {
+  const apiUrl = 'https://www.sporttery.cn/ssq/';
+  
+  try {
+    console.log(`尝试从中国竞彩网获取数据: ${apiUrl}`);
     
     const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Referer': 'https://6.17500.cn/',
-      'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3'
+      'User-Agent': USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2',
+      'Host': 'www.sporttery.cn',
+      'Referer': 'https://www.sporttery.cn/',
+      'Upgrade-Insecure-Requests': '1'
     };
     
     // 添加随机延迟
@@ -368,49 +494,374 @@ async function tryOfficialAPI() {
     const response = await fetch(apiUrl, { headers });
     
     if (!response.ok) {
-      console.log(`6.17500.cn 返回错误状态: ${response.status} ${response.statusText}`);
+      console.log(`中国竞彩网返回错误状态: ${response.status} ${response.statusText}`);
       return [];
     }
     
     const html = await response.text();
     
-    // 解析HTML数据
-    const results = parse17500HTML(html);
+    // 解析中国竞彩网的HTML内容
+    const results = parseSportteryHTML(html);
     if (results.length > 0) {
-      console.log(`从6.17500.cn成功解析 ${results.length} 条数据`);
+      console.log(`从中国竞彩网成功解析 ${results.length} 条数据`);
       return results;
     } else {
-      console.log(`从6.17500.cn解析数据为空`);
+      console.log(`从中国竞彩网解析数据为空`);
     }
   } catch (error) {
-    console.error(`6.17500.cn 请求失败:`, error);
-    console.error(`错误堆栈:`, error.stack);
+    console.error(`中国竞彩网请求失败:`, error);
   }
   
   return [];
 }
 
-// 尝试第三方数据源 - 添加几个可靠的备选数据源
-async function tryThirdPartySources() {
-  // 尝试从多个数据源获取数据，确保能获取到红球出球顺序
-  console.log('开始尝试第三方数据源...');
-  
-  // 可以尝试添加以下数据源（需要测试其可靠性）：
-  // 1. 乐彩网 - 提供完整的红球出球顺序
-  // 2. 彩经网 - 提供详细的开奖信息
-  // 3. 彩票之家 - 提供完整的历史数据
-  
-  // 当前暂时只启用乐彩网作为备份数据源
+// 解析中国竞彩网的HTML内容
+function parseSportteryHTML(html) {
+  console.log('开始解析中国竞彩网的HTML内容');
   const results = [];
   
-  // 尝试乐彩网的另一个接口
-  const lecaiResult = await tryLecaiAPI();
-  if (lecaiResult && lecaiResult.length > 0) {
-    console.log(`从乐彩网获取到 ${lecaiResult.length} 条数据`);
-    results.push(...lecaiResult);
+  try {
+    // 查找包含开奖记录的表格
+    const tableMatch = html.match(/<table[^>]*class="kj_table"[^>]*>([\s\S]*?)<\/table>/);
+    
+    if (!tableMatch) {
+      console.log('未找到包含开奖记录的表格');
+      return results;
+    }
+    
+    const tableContent = tableMatch[1];
+    
+    // 提取表格行
+    const rows = tableContent.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g);
+    
+    if (!rows) {
+      console.log('未找到表格行');
+      return results;
+    }
+    
+    // 跳过表头行，从第二行开始处理数据
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      
+      // 提取期号
+      const issueMatch = row.match(/<td[^>]*class="td_qh"[^>]*>([\d]+)<\/td>/);
+      if (!issueMatch) continue;
+      const issue = issueMatch[1];
+      
+      // 提取日期
+      const dateMatch = row.match(/<td[^>]*class="td_date"[^>]*>([\d]{4}-[\d]{2}-[\d]{2})<\/td>/);
+      if (!dateMatch) continue;
+      const date = dateMatch[1];
+      
+      // 提取红球
+      const redMatch = row.match(/<td[^>]*class="td_ball_red"[^>]*>([\s\S]*?)<\/td>/);
+      if (!redMatch) continue;
+      const redBalls = redMatch[1].match(/<span[^>]*>(\d{2})<\/span>/g);
+      if (!redBalls || redBalls.length !== 6) continue;
+      const red = redBalls.map(ball => parseInt(ball.match(/<span[^>]*>(\d{2})<\/span>/)[1])).sort((a, b) => a - b);
+      
+      // 提取蓝球
+      const blueMatch = row.match(/<td[^>]*class="td_ball_blue"[^>]*>([\s\S]*?)<\/td>/);
+      if (!blueMatch) continue;
+      const blueBall = blueMatch[1].match(/<span[^>]*>(\d{2})<\/span>/);
+      if (!blueBall) continue;
+      const blue = parseInt(blueBall[1]);
+      
+      // 添加到结果
+      results.push({
+        issue,
+        red,
+        blue,
+        date
+      });
+    }
+  } catch (error) {
+    console.error(`解析中国竞彩网数据失败:`, error);
   }
   
-  // 尝试其他数据源可以在这里添加
+  return results;
+}
+
+// 尝试从500彩票网API获取数据
+async function try500LotteryAPI() {
+  const apiUrl = 'https://datachart.500.com/ssq/history/newinc/history.php?limit=100&sort=0';
+  
+  try {
+    console.log(`尝试从500彩票网获取数据: ${apiUrl}`);
+    
+    const headers = {
+      'User-Agent': USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2',
+      'Host': 'datachart.500.com',
+      'Referer': 'https://datachart.500.com/ssq/',
+      'Upgrade-Insecure-Requests': '1'
+    };
+    
+    // 添加随机延迟
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    
+    const response = await fetch(apiUrl, { headers });
+    
+    if (!response.ok) {
+      console.log(`500彩票网返回错误状态: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    
+    const html = await response.text();
+    
+    // 解析500彩票网的HTML内容
+    const results = parse500LotteryHTML(html);
+    if (results.length > 0) {
+      console.log(`从500彩票网成功解析 ${results.length} 条数据`);
+      return results;
+    } else {
+      console.log(`从500彩票网解析数据为空`);
+    }
+  } catch (error) {
+    console.error(`500彩票网请求失败:`, error);
+  }
+  
+  return [];
+}
+
+// 解析500彩票网的HTML内容
+function parse500LotteryHTML(html) {
+  console.log('开始解析500彩票网的HTML内容');
+  const results = [];
+  
+  try {
+    // 查找包含开奖记录的表格
+    console.log('尝试从表格中提取数据');
+    
+    // 500彩票网的HTML结构中，数据行使用class="t_tr1"
+    const rows = html.match(/<tr[^>]*class="t_tr1"[^>]*>([\s\S]*?)<\/tr>/g);
+    
+    if (!rows) {
+      console.log('未找到数据行');
+      return results;
+    }
+    
+    console.log(`找到 ${rows.length} 行数据`);
+    
+    // 处理每一行数据
+    for (const row of rows) {
+      // 提取期号
+      const issueMatch = row.match(/<td[^>]*>(\d{5,7})<\/td>/);
+      if (!issueMatch) {
+        console.log('未找到期号');
+        continue;
+      }
+      const issue = issueMatch[1];
+      
+      // 提取红球
+      const redMatch = row.match(/<td[^>]*class="t_cfont2"[^>]*>(\d{2})<\/td>/g);
+      if (!redMatch || redMatch.length < 6) {
+        console.log('未找到红球或红球数量不足');
+        continue;
+      }
+      const red = redMatch.slice(0, 6).map(ball => parseInt(ball.match(/<td[^>]*class="t_cfont2"[^>]*>(\d{2})<\/td>/)[1])).sort((a, b) => a - b);
+      
+      // 提取蓝球
+      const blueMatch = row.match(/<td[^>]*class="t_cfont4"[^>]*>(\d{2})<\/td>/);
+      if (!blueMatch) {
+        console.log('未找到蓝球');
+        continue;
+      }
+      const blue = parseInt(blueMatch[1]);
+      
+      // 提取日期
+      const dateMatch = row.match(/<td[^>]*>(\d{4}-\d{2}-\d{2})<\/td>/g);
+      if (!dateMatch || dateMatch.length === 0) {
+        console.log('未找到日期');
+        continue;
+      }
+      const date = dateMatch[dateMatch.length - 1].match(/<td[^>]*>(\d{4}-\d{2}-\d{2})<\/td>/)[1];
+      
+      // 添加到结果
+      results.push({
+        issue,
+        red,
+        blue,
+        date
+      });
+    }
+    
+    console.log(`成功解析 ${results.length} 条数据`);
+  } catch (error) {
+    console.error(`解析500彩票网数据失败:`, error);
+    // 打印部分HTML内容用于调试
+    console.log(`HTML内容片段: ${html.substring(0, 500)}...`);
+  }
+  
+  return results;
+}
+
+// 尝试从中彩网API获取数据
+async function tryZcwAPI() {
+  const apiUrl = 'https://www.zhcw.com/data/ssq_kjhm.html';
+  
+  try {
+    console.log(`尝试从中彩网获取数据: ${apiUrl}`);
+    
+    const headers = {
+      'User-Agent': USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2',
+      'Host': 'www.zhcw.com',
+      'Referer': 'https://www.zhcw.com/ssq/',
+      'Upgrade-Insecure-Requests': '1'
+    };
+    
+    // 添加随机延迟
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    
+    const response = await fetch(apiUrl, { headers });
+    
+    if (!response.ok) {
+      console.log(`中彩网返回错误状态: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    
+    const html = await response.text();
+    
+    // 解析中彩网的HTML内容
+    const results = parseZcwHTML(html);
+    if (results.length > 0) {
+      console.log(`从中彩网成功解析 ${results.length} 条数据`);
+      return results;
+    } else {
+      console.log(`从中彩网解析数据为空`);
+    }
+  } catch (error) {
+    console.error(`中彩网请求失败:`, error);
+  }
+  
+  return [];
+}
+
+// 解析中彩网的HTML内容
+function parseZcwHTML(html) {
+  console.log('开始解析中彩网的HTML内容');
+  const results = [];
+  
+  try {
+    // 查找包含开奖记录的表格
+    const tableMatch = html.match(/<table[^>]*id="kjhmb"[^>]*>([\s\S]*?)<\/table>/);
+    
+    if (!tableMatch) {
+      console.log('未找到包含开奖记录的表格');
+      return results;
+    }
+    
+    const tableContent = tableMatch[1];
+    
+    // 提取表格行
+    const rows = tableContent.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g);
+    
+    if (!rows) {
+      console.log('未找到表格行');
+      return results;
+    }
+    
+    // 跳过表头行，从第二行开始处理数据
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      
+      // 提取期号
+      const issueMatch = row.match(/<td[^>]*class="qh"[^>]*>(\d{7})<\/td>/);
+      if (!issueMatch) continue;
+      const issue = issueMatch[1];
+      
+      // 提取日期
+      const dateMatch = row.match(/<td[^>]*class="kjrq"[^>]*>(\d{4}-\d{2}-\d{2})<\/td>/);
+      if (!dateMatch) continue;
+      const date = dateMatch[1];
+      
+      // 提取红球
+      const redMatch = row.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/g);
+      if (!redMatch || redMatch.length !== 6) continue;
+      const red = redMatch.map(ball => parseInt(ball.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/)[1])).sort((a, b) => a - b);
+      
+      // 提取蓝球
+      const blueMatch = row.match(/<td[^>]*class="blue"[^>]*>(\d{2})<\/td>/);
+      if (!blueMatch) continue;
+      const blue = parseInt(blueMatch[1]);
+      
+      // 添加到结果
+      results.push({
+        issue,
+        red,
+        blue,
+        date
+      });
+    }
+  } catch (error) {
+    console.error(`解析中彩网数据失败:`, error);
+  }
+  
+  return results;
+}
+
+// 通用彩票HTML解析函数（作为备选）
+function parseGenericLotteryHTML(html) {
+  console.log('开始使用通用解析函数解析HTML');
+  const results = [];
+  
+  try {
+    // 查找所有可能的开奖记录表格
+    const tableMatches = html.match(/<table[^>]*>([\s\S]*?)<\/table>/g);
+    
+    if (!tableMatches) {
+      console.log('未找到表格');
+      return results;
+    }
+    
+    // 遍历所有表格，寻找包含开奖记录的表格
+    for (const tableMatch of tableMatches) {
+      // 提取表格行
+      const rows = tableMatch.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g);
+      
+      if (!rows || rows.length < 5) continue;
+      
+      // 尝试提取数据
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        
+        // 尝试提取期号（7位数字）
+        const issueMatch = row.match(/(\d{7})/);
+        if (!issueMatch) continue;
+        const issue = issueMatch[1];
+        
+        // 尝试提取日期（YYYY-MM-DD格式）
+        const dateMatch = row.match(/(\d{4}-\d{2}-\d{2})/);
+        if (!dateMatch) continue;
+        const date = dateMatch[1];
+        
+        // 尝试提取数字球（红球和蓝球）
+        const ballsMatch = row.match(/(?:<span[^>]*>)?(\d{2})(?:<\/span>)?/g);
+        if (!ballsMatch || ballsMatch.length < 7) continue;
+        
+        // 提取红球和蓝球
+        const balls = ballsMatch.map(ball => parseInt(ball.match(/(\d{2})/)[1]));
+        const red = balls.slice(0, 6).sort((a, b) => a - b);
+        const blue = balls[6];
+        
+        // 添加到结果
+        results.push({
+          issue,
+          red,
+          blue,
+          date
+        });
+      }
+      
+      // 如果找到了数据，就停止遍历其他表格
+      if (results.length > 0) break;
+    }
+  } catch (error) {
+    console.error(`解析数据失败:`, error);
+  }
   
   return results;
 }
@@ -542,122 +993,164 @@ function parseLecaiHTML(html) {
   return results;
 }
 
-// 解析6.17500.cn网站的HTML内容，只返回最新的一期开奖结果
-function parse17500HTML(html) {
-  console.log('开始解析17500.cn的HTML内容');
+// 解析中国福利彩票官网HTML
+function parseCWLHTML(html) {
   const results = [];
-  console.log('HTML内容长度:', html.length, '字符');
   
   try {
-    // 1. 首先提取包含开奖记录的核心内容区域
-    // 查找包含开奖记录的表格或div
-    const contentMatch = html.match(/<table[^>]*class="[^>]*lottery[^>]*"[^>]*>([\s\S]*?)<\/table>/) || 
-                        html.match(/<div[^>]*class="[^>]*lottery[^>]*"[^>]*>([\s\S]*?)<\/div>/) ||
-                        html.match(/<table[^>]*>([\s\S]*?)<\/table>/);
+    console.log('开始解析中国福利彩票官网HTML...');
     
-    if (!contentMatch) {
-      console.log('未找到包含开奖记录的表格或div');
-      // 使用整个HTML作为备选
+    // 查找开奖信息表格，使用更灵活的正则表达式
+    const tableRegex = /<table[^>]*class="[^"]*kj_tablelist02[^"]*"[^>]*>([\s\S]*?)<\/table>/;
+    const tableMatch = html.match(tableRegex);
+    
+    if (!tableMatch || !tableMatch[1]) {
+      console.log('未找到开奖信息表格，尝试其他可能的表格结构');
+      
+      // 尝试查找所有可能的表格
+      const allTablesRegex = /<table[^>]*>([\s\S]*?)<\/table>/g;
+      const allTables = [...html.matchAll(allTablesRegex)];
+      console.log(`找到 ${allTables.length} 个表格`);
+      
+      // 如果找到多个表格，尝试分析每个表格
+      for (let j = 0; j < allTables.length; j++) {
+        const tableContent = allTables[j][1];
+        
+        // 检查表格是否包含开奖相关信息
+        if (tableContent.includes('td_kj_qh') || tableContent.includes('td_kj_date') || tableContent.includes('td_kj_ball')) {
+          console.log(`表格 ${j} 可能包含开奖信息`);
+          
+          // 提取表格行数据
+          const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+          const rows = [...tableContent.matchAll(rowRegex)];
+          console.log(`表格 ${j} 包含 ${rows.length} 行`);
+          
+          // 遍历行数据（跳过表头）
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i][1];
+            
+            // 提取期号（使用更灵活的正则）
+            const issueRegex = /<td[^>]*class="[^"]*td_kj_qh[^"]*"[^>]*>([\d]+)<\/td>/;
+            const issueMatch = row.match(issueRegex);
+            
+            if (!issueMatch) continue;
+            
+            const issue = issueMatch[1];
+            
+            // 提取日期
+            const dateRegex = /<td[^>]*class="[^"]*td_kj_date[^"]*"[^>]*>([\d]{4}-[\d]{2}-[\d]{2})<\/td>/;
+            const dateMatch = row.match(dateRegex);
+            
+            if (!dateMatch) continue;
+            
+            const date = dateMatch[1];
+            
+            // 提取红球
+            const redRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*red[^"]*"[^>]*>([\d]{2})<\/td>/g;
+            const redMatches = [...row.matchAll(redRegex)];
+            
+            if (redMatches.length !== 6) continue;
+            
+            const redOrder = redMatches.map(match => match[1]);
+            const red = [...redOrder].sort((a, b) => a - b);
+            
+            // 提取蓝球
+            const blueRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*blue[^"]*"[^>]*>([\d]{2})<\/td>/;
+            const blueMatch = row.match(blueRegex);
+            
+            if (!blueMatch) continue;
+            
+            const blue = blueMatch[1];
+            
+            results.push({
+              issue,
+              date,
+              redOrder,
+              red,
+              blue
+            });
+            
+            console.log(`成功解析: 期号 ${issue}, 日期 ${date}, 红球 ${red}, 蓝球 ${blue}`);
+          }
+          
+          // 如果已经找到数据，不再继续查找其他表格
+          if (results.length > 0) {
+            break;
+          }
+        }
+      }
+      
       return results;
     }
     
-    const content = contentMatch[1];
-    console.log('核心内容长度:', content.length, '字符');
+    const tableContent = tableMatch[1];
+    console.log('找到开奖信息表格');
     
-    // 2. 匹配日期和期号的组合
-    // 支持多种格式：
-    // - 日期  第 期号 期
-    // - 日期  第期号期
-    // - 日期第期号期
-    const issueDatePattern = /(\d{4}-\d{2}-\d{2})[\s\t]*(?:<[^>]*>)?[\s\t]*第[\s\t]*(?:<[^>]*>)?[\s\t]*(\d{4}\d{3})[\s\t]*(?:<[^>]*>)?[\s\t]*期/g;
+    // 提取表格行数据
+    const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+    const rows = [...tableContent.matchAll(rowRegex)];
+    console.log(`表格包含 ${rows.length} 行`);
     
-    let issueMatch;
-    let latestResult = null;
-    let latestIssue = 0;
-    let matchCount = 0;
-    
-    while ((issueMatch = issueDatePattern.exec(content)) !== null) {
-      matchCount++;
+    // 遍历行数据（跳过表头）
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i][1];
       
-      try {
-        const date = issueMatch[1];
-        const issue = issueMatch[2];
-        
-        // 确保期号是7位数字
-        if (issue.length !== 7) {
-          console.log(`跳过不合法期号: ${issue}`);
-          continue;
-        }
-        
-        // 3. 从这个匹配位置开始查找号码
-        const numbersStartPos = issueDatePattern.lastIndex;
-        const numbersSection = content.substring(numbersStartPos, numbersStartPos + 200);
-        
-        // 匹配号码：支持数字之间的空格、制表符、HTML标签等
-        const numbersPattern = /([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})[\s\t]*(?:<[^>]*>)?[\s\t]*([\d]{1,2})/;
-        
-        const numbersMatch = numbersSection.match(numbersPattern);
-        
-        if (!numbersMatch) {
-          console.log(`未找到期号 ${issue} 的号码`);
-          continue;
-        }
-        
-        // 提取号码并转换为数字
-        const numbers = numbersMatch.slice(1).map(Number).filter(n => !isNaN(n));
-        
-        if (numbers.length === 7) {
-          // 红球按开奖顺序保存（不排序）
-          const redOrder = numbers.slice(0, 6);
-          // 红球按大小排序保存
-          const red = [...redOrder].sort((a, b) => a - b);
-          const blue = numbers[6];
-          
-          // 验证号码范围
-          const isValidRed = red.every(n => n >= 1 && n <= 33);
-          const isValidBlue = blue >= 1 && blue <= 16;
-          
-          if (isValidRed && isValidBlue) {
-            const currentIssue = parseInt(issue);
-            // 只保留最新的一期
-            if (currentIssue > latestIssue) {
-              latestIssue = currentIssue;
-              latestResult = { issue, red, blue, date, redOrder };
-              console.log(`找到最新期号: ${issue}, 日期 ${date}, 开奖号码: ${redOrder.join(' ')} ${blue}`);
-              // 解析到最新一期后可以提前退出
-              break;
-            }
-          } else {
-            console.log(`号码范围验证失败: ${issue} - 红球: ${red}, 蓝球: ${blue}`);
-          }
-        } else {
-          console.log(`号码数量不符合预期: ${issue} - 实际数量: ${numbers.length}`);
-        }
-        
-        // 避免无限循环
-        if (issueDatePattern.lastIndex >= content.length - 100) {
-          break;
-        }
-        
-      } catch (e) {
-        console.error(`解析期号数据失败:`, e);
-      }
+      // 提取期号
+      const issueRegex = /<td[^>]*class="[^"]*td_kj_qh[^"]*"[^>]*>([\d]+)<\/td>/;
+      const issueMatch = row.match(issueRegex);
+      
+      if (!issueMatch) continue;
+      
+      const issue = issueMatch[1];
+      
+      // 提取日期
+      const dateRegex = /<td[^>]*class="[^"]*td_kj_date[^"]*"[^>]*>([\d]{4}-[\d]{2}-[\d]{2})<\/td>/;
+      const dateMatch = row.match(dateRegex);
+      
+      if (!dateMatch) continue;
+      
+      const date = dateMatch[1];
+      
+      // 提取红球
+      const redRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*red[^"]*"[^>]*>([\d]{2})<\/td>/g;
+      const redMatches = [...row.matchAll(redRegex)];
+      
+      if (redMatches.length !== 6) continue;
+      
+      const redOrder = redMatches.map(match => match[1]);
+      const red = [...redOrder].sort((a, b) => a - b);
+      
+      // 提取蓝球
+      const blueRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*blue[^"]*"[^>]*>([\d]{2})<\/td>/;
+      const blueMatch = row.match(blueRegex);
+      
+      if (!blueMatch) continue;
+      
+      const blue = blueMatch[1];
+      
+      results.push({
+        issue,
+        date,
+        redOrder,
+        red,
+        blue
+      });
+      
+      console.log(`成功解析: 期号 ${issue}, 日期 ${date}, 红球 ${red}, 蓝球 ${blue}`);
     }
     
-    // 如果找到最新一期，添加到结果
-    if (latestResult) {
-      results.push(latestResult);
-      console.log(`解析完成，共处理 ${matchCount} 个期号，只保留最新的一期: ${latestResult.issue}`);
-    } else {
-      console.log(`解析完成，共处理 ${matchCount} 个期号，未找到有效记录`);
-    }
-    
-  } catch (e) {
-    console.error('解析过程中发生严重错误:', e);
-    console.error('错误堆栈:', e.stack);
+    console.log(`成功解析到 ${results.length} 条开奖记录`);
+  } catch (error) {
+    console.error('解析中国福利彩票官网HTML失败:', error);
+    console.error('错误堆栈:', error.stack);
   }
   
   return results;
+}
+
+// 解析6.17500.cn网站的HTML内容（已弃用）
+function parse17500HTML(html) {
+  return [];
 }
 
 // 解析idcd.com API返回的格式（保留作为备份）

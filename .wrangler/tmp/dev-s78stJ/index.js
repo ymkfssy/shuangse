@@ -35,7 +35,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// .wrangler/tmp/bundle-XpZWhB/checked-fetch.js
+// .wrangler/tmp/bundle-6YOU0S/checked-fetch.js
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
     (typeof request === "string" ? new Request(request, init) : request).url
@@ -53,7 +53,7 @@ function checkURL(request, init) {
 }
 var urls;
 var init_checked_fetch = __esm({
-  ".wrangler/tmp/bundle-XpZWhB/checked-fetch.js"() {
+  ".wrangler/tmp/bundle-6YOU0S/checked-fetch.js"() {
     urls = /* @__PURE__ */ new Set();
     __name(checkURL, "checkURL");
     globalThis.fetch = new Proxy(globalThis.fetch, {
@@ -66,14 +66,14 @@ var init_checked_fetch = __esm({
   }
 });
 
-// .wrangler/tmp/bundle-XpZWhB/strip-cf-connecting-ip-header.js
+// .wrangler/tmp/bundle-6YOU0S/strip-cf-connecting-ip-header.js
 function stripCfConnectingIPHeader(input, init) {
   const request = new Request(input, init);
   request.headers.delete("CF-Connecting-IP");
   return request;
 }
 var init_strip_cf_connecting_ip_header = __esm({
-  ".wrangler/tmp/bundle-XpZWhB/strip-cf-connecting-ip-header.js"() {
+  ".wrangler/tmp/bundle-6YOU0S/strip-cf-connecting-ip-header.js"() {
     __name(stripCfConnectingIPHeader, "stripCfConnectingIPHeader");
     globalThis.fetch = new Proxy(globalThis.fetch, {
       apply(target, thisArg, argArray) {
@@ -2085,12 +2085,12 @@ var require_cookie = __commonJS({
   }
 });
 
-// .wrangler/tmp/bundle-XpZWhB/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-6YOU0S/middleware-loader.entry.ts
 init_checked_fetch();
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 
-// .wrangler/tmp/bundle-XpZWhB/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-6YOU0S/middleware-insertion-facade.js
 init_checked_fetch();
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
@@ -31134,6 +31134,14 @@ var utils = {
 var version = XLSX.version;
 
 // src/lottery.js
+var USER_AGENTS = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Edg/125.0.2535.85",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Edg/124.0.2478.100"
+];
 async function importHistoryFromExcel(request, env) {
   try {
     const formData = await request.formData();
@@ -31432,22 +31440,47 @@ async function crawlHistoryNumbers(request, env) {
 }
 __name(crawlHistoryNumbers, "crawlHistoryNumbers");
 async function tryOfficialAPI() {
-  const apiUrl = "https://www.cwl.gov.cn/ygkj/wqkjgg/";
-  try {
-    console.log(`\u5C1D\u8BD5\u4ECE\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51\u722C\u53D6\u6570\u636E: ${apiUrl}`);
-    const headers = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  const apiUrl = "https://www.cwl.gov.cn/ygkj/wqkjgg/yizhong/ssq/";
+  const options = {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Connection": "keep-alive",
+      "Upgrade-Insecure-Requests": "1",
+      "Host": "www.cwl.gov.cn",
+      "Origin": "https://www.cwl.gov.cn",
       "Referer": "https://www.cwl.gov.cn/",
-      "Accept-Language": "zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3"
-    };
+      "Cache-Control": "max-age=0",
+      "DNT": "1",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "same-origin",
+      "Sec-Fetch-User": "?1",
+      "Sec-Ch-Ua": '"Not/A)Brand";v="99", "Google Chrome";v="125", "Chromium";v="125"',
+      "Sec-Ch-Ua-Mobile": "?0",
+      "Sec-Ch-Ua-Platform": '"Windows"'
+    },
+    redirect: "follow",
+    // 自动跟随重定向
+    credentials: "include"
+    // 包含凭证信息
+  };
+  console.log("\u6B63\u5728\u5C1D\u8BD5\u4ECE\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51\u83B7\u53D6\u6570\u636E...");
+  console.log(`\u8BF7\u6C42URL: ${apiUrl}`);
+  try {
     await new Promise((resolve) => setTimeout(resolve, Math.random() * 2e3 + 1e3));
-    const response = await fetch(apiUrl, { headers });
+    const response = await fetch(apiUrl, options);
+    console.log(`\u54CD\u5E94\u72B6\u6001\u7801: ${response.status} ${response.statusText}`);
+    console.log(`\u54CD\u5E94URL: ${response.url}`);
     if (!response.ok) {
-      console.log(`\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51\u8FD4\u56DE\u9519\u8BEF\u72B6\u6001: ${response.status} ${response.statusText}`);
-      return [];
+      const html2 = await response.text();
+      console.log(`\u54CD\u5E94\u5185\u5BB9: ${html2.substring(0, 500)}...`);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
     const html = await response.text();
+    console.log("\u83B7\u53D6\u5230HTML\u5185\u5BB9\u957F\u5EA6:", html.length);
     const results = parseCWLHTML(html);
     if (results.length > 0) {
       console.log(`\u4ECE\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51\u6210\u529F\u89E3\u6790 ${results.length} \u6761\u6570\u636E`);
@@ -31456,23 +31489,292 @@ async function tryOfficialAPI() {
       console.log(`\u4ECE\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51\u89E3\u6790\u6570\u636E\u4E3A\u7A7A`);
     }
   } catch (error) {
-    console.error(`\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51\u8BF7\u6C42\u5931\u8D25:`, error);
-    console.error(`\u9519\u8BEF\u5806\u6808:`, error.stack);
+    console.error(`\u4ECE\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51\u83B7\u53D6\u6570\u636E\u5931\u8D25: ${error.message}`);
+    console.error("\u9519\u8BEF\u8BE6\u60C5:", error);
   }
   return [];
 }
 __name(tryOfficialAPI, "tryOfficialAPI");
 async function tryThirdPartySources() {
-  console.log("\u5F00\u59CB\u5C1D\u8BD5\u7B2C\u4E09\u65B9\u6570\u636E\u6E90...");
+  console.log("\u5C1D\u8BD5\u4ECE\u7B2C\u4E09\u65B9\u6570\u636E\u6E90\u83B7\u53D6\u53CC\u8272\u7403\u5386\u53F2\u5F00\u5956\u6570\u636E");
+  try {
+    console.log("\u5C1D\u8BD5\u83B7\u53D6500\u5F69\u7968\u7F51\u6570\u636E");
+    const lottery500Data = await try500LotteryAPI();
+    if (lottery500Data.length > 0) {
+      console.log(`\u4ECE500\u5F69\u7968\u7F51\u83B7\u53D6\u5230 ${lottery500Data.length} \u6761\u6570\u636E`);
+      return lottery500Data;
+    }
+    console.log("\u5C1D\u8BD5\u83B7\u53D6\u4E2D\u5F69\u7F51\u6570\u636E");
+    const zcwData = await tryZcwAPI();
+    if (zcwData.length > 0) {
+      console.log(`\u4ECE\u4E2D\u5F69\u7F51\u83B7\u53D6\u5230 ${zcwData.length} \u6761\u6570\u636E`);
+      return zcwData;
+    }
+    console.log("\u5C1D\u8BD5\u83B7\u53D6\u4E2D\u56FD\u7ADE\u5F69\u7F51\u6570\u636E");
+    const sportteryData = await trySportteryAPI();
+    if (sportteryData.length > 0) {
+      console.log(`\u4ECE\u4E2D\u56FD\u7ADE\u5F69\u7F51\u83B7\u53D6\u5230 ${sportteryData.length} \u6761\u6570\u636E`);
+      return sportteryData;
+    }
+    console.log("\u5C1D\u8BD5\u83B7\u53D6\u4E50\u5F69\u7F51\u6570\u636E");
+    const lecaiData = await tryLecaiAPI();
+    if (lecaiData.length > 0) {
+      console.log(`\u4ECE\u4E50\u5F69\u7F51\u83B7\u53D6\u5230 ${lecaiData.length} \u6761\u6570\u636E`);
+      return lecaiData;
+    }
+    console.log("\u6240\u6709\u7B2C\u4E09\u65B9\u6570\u636E\u6E90\u90FD\u83B7\u53D6\u5931\u8D25");
+    return [];
+  } catch (error) {
+    console.error("\u7B2C\u4E09\u65B9\u6570\u636E\u6E90\u83B7\u53D6\u6570\u636E\u5F02\u5E38:", error);
+    return [];
+  }
+}
+__name(tryThirdPartySources, "tryThirdPartySources");
+async function trySportteryAPI() {
+  const apiUrl = "https://www.sporttery.cn/ssq/";
+  try {
+    console.log(`\u5C1D\u8BD5\u4ECE\u4E2D\u56FD\u7ADE\u5F69\u7F51\u83B7\u53D6\u6570\u636E: ${apiUrl}`);
+    const headers = {
+      "User-Agent": USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
+      "Host": "www.sporttery.cn",
+      "Referer": "https://www.sporttery.cn/",
+      "Upgrade-Insecure-Requests": "1"
+    };
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 2e3 + 1e3));
+    const response = await fetch(apiUrl, { headers });
+    if (!response.ok) {
+      console.log(`\u4E2D\u56FD\u7ADE\u5F69\u7F51\u8FD4\u56DE\u9519\u8BEF\u72B6\u6001: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    const html = await response.text();
+    const results = parseSportteryHTML(html);
+    if (results.length > 0) {
+      console.log(`\u4ECE\u4E2D\u56FD\u7ADE\u5F69\u7F51\u6210\u529F\u89E3\u6790 ${results.length} \u6761\u6570\u636E`);
+      return results;
+    } else {
+      console.log(`\u4ECE\u4E2D\u56FD\u7ADE\u5F69\u7F51\u89E3\u6790\u6570\u636E\u4E3A\u7A7A`);
+    }
+  } catch (error) {
+    console.error(`\u4E2D\u56FD\u7ADE\u5F69\u7F51\u8BF7\u6C42\u5931\u8D25:`, error);
+  }
+  return [];
+}
+__name(trySportteryAPI, "trySportteryAPI");
+function parseSportteryHTML(html) {
+  console.log("\u5F00\u59CB\u89E3\u6790\u4E2D\u56FD\u7ADE\u5F69\u7F51\u7684HTML\u5185\u5BB9");
   const results = [];
-  const lecaiResult = await tryLecaiAPI();
-  if (lecaiResult && lecaiResult.length > 0) {
-    console.log(`\u4ECE\u4E50\u5F69\u7F51\u83B7\u53D6\u5230 ${lecaiResult.length} \u6761\u6570\u636E`);
-    results.push(...lecaiResult);
+  try {
+    const tableMatch = html.match(/<table[^>]*class="kj_table"[^>]*>([\s\S]*?)<\/table>/);
+    if (!tableMatch) {
+      console.log("\u672A\u627E\u5230\u5305\u542B\u5F00\u5956\u8BB0\u5F55\u7684\u8868\u683C");
+      return results;
+    }
+    const tableContent = tableMatch[1];
+    const rows = tableContent.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g);
+    if (!rows) {
+      console.log("\u672A\u627E\u5230\u8868\u683C\u884C");
+      return results;
+    }
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const issueMatch = row.match(/<td[^>]*class="td_qh"[^>]*>([\d]+)<\/td>/);
+      if (!issueMatch)
+        continue;
+      const issue = issueMatch[1];
+      const dateMatch = row.match(/<td[^>]*class="td_date"[^>]*>([\d]{4}-[\d]{2}-[\d]{2})<\/td>/);
+      if (!dateMatch)
+        continue;
+      const date = dateMatch[1];
+      const redMatch = row.match(/<td[^>]*class="td_ball_red"[^>]*>([\s\S]*?)<\/td>/);
+      if (!redMatch)
+        continue;
+      const redBalls = redMatch[1].match(/<span[^>]*>(\d{2})<\/span>/g);
+      if (!redBalls || redBalls.length !== 6)
+        continue;
+      const red = redBalls.map((ball) => parseInt(ball.match(/<span[^>]*>(\d{2})<\/span>/)[1])).sort((a, b) => a - b);
+      const blueMatch = row.match(/<td[^>]*class="td_ball_blue"[^>]*>([\s\S]*?)<\/td>/);
+      if (!blueMatch)
+        continue;
+      const blueBall = blueMatch[1].match(/<span[^>]*>(\d{2})<\/span>/);
+      if (!blueBall)
+        continue;
+      const blue = parseInt(blueBall[1]);
+      results.push({
+        issue,
+        red,
+        blue,
+        date
+      });
+    }
+  } catch (error) {
+    console.error(`\u89E3\u6790\u4E2D\u56FD\u7ADE\u5F69\u7F51\u6570\u636E\u5931\u8D25:`, error);
   }
   return results;
 }
-__name(tryThirdPartySources, "tryThirdPartySources");
+__name(parseSportteryHTML, "parseSportteryHTML");
+async function try500LotteryAPI() {
+  const apiUrl = "https://datachart.500.com/ssq/history/newinc/history.php?limit=100&sort=0";
+  try {
+    console.log(`\u5C1D\u8BD5\u4ECE500\u5F69\u7968\u7F51\u83B7\u53D6\u6570\u636E: ${apiUrl}`);
+    const headers = {
+      "User-Agent": USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
+      "Host": "datachart.500.com",
+      "Referer": "https://datachart.500.com/ssq/",
+      "Upgrade-Insecure-Requests": "1"
+    };
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 2e3 + 1e3));
+    const response = await fetch(apiUrl, { headers });
+    if (!response.ok) {
+      console.log(`500\u5F69\u7968\u7F51\u8FD4\u56DE\u9519\u8BEF\u72B6\u6001: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    const html = await response.text();
+    const results = parse500LotteryHTML(html);
+    if (results.length > 0) {
+      console.log(`\u4ECE500\u5F69\u7968\u7F51\u6210\u529F\u89E3\u6790 ${results.length} \u6761\u6570\u636E`);
+      return results;
+    } else {
+      console.log(`\u4ECE500\u5F69\u7968\u7F51\u89E3\u6790\u6570\u636E\u4E3A\u7A7A`);
+    }
+  } catch (error) {
+    console.error(`500\u5F69\u7968\u7F51\u8BF7\u6C42\u5931\u8D25:`, error);
+  }
+  return [];
+}
+__name(try500LotteryAPI, "try500LotteryAPI");
+function parse500LotteryHTML(html) {
+  console.log("\u5F00\u59CB\u89E3\u6790500\u5F69\u7968\u7F51\u7684HTML\u5185\u5BB9");
+  const results = [];
+  try {
+    console.log("\u5C1D\u8BD5\u4ECE\u8868\u683C\u4E2D\u63D0\u53D6\u6570\u636E");
+    const rows = html.match(/<tr[^>]*class="t_tr1"[^>]*>([\s\S]*?)<\/tr>/g);
+    if (!rows) {
+      console.log("\u672A\u627E\u5230\u6570\u636E\u884C");
+      return results;
+    }
+    console.log(`\u627E\u5230 ${rows.length} \u884C\u6570\u636E`);
+    for (const row of rows) {
+      const issueMatch = row.match(/<td[^>]*>(\d{5,7})<\/td>/);
+      if (!issueMatch) {
+        console.log("\u672A\u627E\u5230\u671F\u53F7");
+        continue;
+      }
+      const issue = issueMatch[1];
+      const redMatch = row.match(/<td[^>]*class="t_cfont2"[^>]*>(\d{2})<\/td>/g);
+      if (!redMatch || redMatch.length < 6) {
+        console.log("\u672A\u627E\u5230\u7EA2\u7403\u6216\u7EA2\u7403\u6570\u91CF\u4E0D\u8DB3");
+        continue;
+      }
+      const red = redMatch.slice(0, 6).map((ball) => parseInt(ball.match(/<td[^>]*class="t_cfont2"[^>]*>(\d{2})<\/td>/)[1])).sort((a, b) => a - b);
+      const blueMatch = row.match(/<td[^>]*class="t_cfont4"[^>]*>(\d{2})<\/td>/);
+      if (!blueMatch) {
+        console.log("\u672A\u627E\u5230\u84DD\u7403");
+        continue;
+      }
+      const blue = parseInt(blueMatch[1]);
+      const dateMatch = row.match(/<td[^>]*>(\d{4}-\d{2}-\d{2})<\/td>/g);
+      if (!dateMatch || dateMatch.length === 0) {
+        console.log("\u672A\u627E\u5230\u65E5\u671F");
+        continue;
+      }
+      const date = dateMatch[dateMatch.length - 1].match(/<td[^>]*>(\d{4}-\d{2}-\d{2})<\/td>/)[1];
+      results.push({
+        issue,
+        red,
+        blue,
+        date
+      });
+    }
+    console.log(`\u6210\u529F\u89E3\u6790 ${results.length} \u6761\u6570\u636E`);
+  } catch (error) {
+    console.error(`\u89E3\u6790500\u5F69\u7968\u7F51\u6570\u636E\u5931\u8D25:`, error);
+    console.log(`HTML\u5185\u5BB9\u7247\u6BB5: ${html.substring(0, 500)}...`);
+  }
+  return results;
+}
+__name(parse500LotteryHTML, "parse500LotteryHTML");
+async function tryZcwAPI() {
+  const apiUrl = "https://www.zhcw.com/data/ssq_kjhm.html";
+  try {
+    console.log(`\u5C1D\u8BD5\u4ECE\u4E2D\u5F69\u7F51\u83B7\u53D6\u6570\u636E: ${apiUrl}`);
+    const headers = {
+      "User-Agent": USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
+      "Host": "www.zhcw.com",
+      "Referer": "https://www.zhcw.com/ssq/",
+      "Upgrade-Insecure-Requests": "1"
+    };
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 2e3 + 1e3));
+    const response = await fetch(apiUrl, { headers });
+    if (!response.ok) {
+      console.log(`\u4E2D\u5F69\u7F51\u8FD4\u56DE\u9519\u8BEF\u72B6\u6001: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    const html = await response.text();
+    const results = parseZcwHTML(html);
+    if (results.length > 0) {
+      console.log(`\u4ECE\u4E2D\u5F69\u7F51\u6210\u529F\u89E3\u6790 ${results.length} \u6761\u6570\u636E`);
+      return results;
+    } else {
+      console.log(`\u4ECE\u4E2D\u5F69\u7F51\u89E3\u6790\u6570\u636E\u4E3A\u7A7A`);
+    }
+  } catch (error) {
+    console.error(`\u4E2D\u5F69\u7F51\u8BF7\u6C42\u5931\u8D25:`, error);
+  }
+  return [];
+}
+__name(tryZcwAPI, "tryZcwAPI");
+function parseZcwHTML(html) {
+  console.log("\u5F00\u59CB\u89E3\u6790\u4E2D\u5F69\u7F51\u7684HTML\u5185\u5BB9");
+  const results = [];
+  try {
+    const tableMatch = html.match(/<table[^>]*id="kjhmb"[^>]*>([\s\S]*?)<\/table>/);
+    if (!tableMatch) {
+      console.log("\u672A\u627E\u5230\u5305\u542B\u5F00\u5956\u8BB0\u5F55\u7684\u8868\u683C");
+      return results;
+    }
+    const tableContent = tableMatch[1];
+    const rows = tableContent.match(/<tr[^>]*>([\s\S]*?)<\/tr>/g);
+    if (!rows) {
+      console.log("\u672A\u627E\u5230\u8868\u683C\u884C");
+      return results;
+    }
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const issueMatch = row.match(/<td[^>]*class="qh"[^>]*>(\d{7})<\/td>/);
+      if (!issueMatch)
+        continue;
+      const issue = issueMatch[1];
+      const dateMatch = row.match(/<td[^>]*class="kjrq"[^>]*>(\d{4}-\d{2}-\d{2})<\/td>/);
+      if (!dateMatch)
+        continue;
+      const date = dateMatch[1];
+      const redMatch = row.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/g);
+      if (!redMatch || redMatch.length !== 6)
+        continue;
+      const red = redMatch.map((ball) => parseInt(ball.match(/<td[^>]*class="red"[^>]*>(\d{2})<\/td>/)[1])).sort((a, b) => a - b);
+      const blueMatch = row.match(/<td[^>]*class="blue"[^>]*>(\d{2})<\/td>/);
+      if (!blueMatch)
+        continue;
+      const blue = parseInt(blueMatch[1]);
+      results.push({
+        issue,
+        red,
+        blue,
+        date
+      });
+    }
+  } catch (error) {
+    console.error(`\u89E3\u6790\u4E2D\u5F69\u7F51\u6570\u636E\u5931\u8D25:`, error);
+  }
+  return results;
+}
+__name(parseZcwHTML, "parseZcwHTML");
 async function tryLecaiAPI() {
   const apiUrl = "https://www.17500.cn/awardlist/ssq/1.html";
   try {
@@ -31566,79 +31868,103 @@ function parseLecaiHTML(html) {
 }
 __name(parseLecaiHTML, "parseLecaiHTML");
 function parseCWLHTML(html) {
-  console.log("\u5F00\u59CB\u89E3\u6790\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51\u7684HTML\u5185\u5BB9");
   const results = [];
-  console.log("HTML\u5185\u5BB9\u957F\u5EA6:", html.length, "\u5B57\u7B26");
   try {
-    const tableMatch = html.match(/<table[^>]*>([\s\S]*?)<\/table>/);
-    if (!tableMatch) {
-      console.log("\u672A\u627E\u5230\u5305\u542B\u5F00\u5956\u8BB0\u5F55\u7684\u8868\u683C");
+    console.log("\u5F00\u59CB\u89E3\u6790\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51HTML...");
+    const tableRegex = /<table[^>]*class="[^"]*kj_tablelist02[^"]*"[^>]*>([\s\S]*?)<\/table>/;
+    const tableMatch = html.match(tableRegex);
+    if (!tableMatch || !tableMatch[1]) {
+      console.log("\u672A\u627E\u5230\u5F00\u5956\u4FE1\u606F\u8868\u683C\uFF0C\u5C1D\u8BD5\u5176\u4ED6\u53EF\u80FD\u7684\u8868\u683C\u7ED3\u6784");
+      const allTablesRegex = /<table[^>]*>([\s\S]*?)<\/table>/g;
+      const allTables = [...html.matchAll(allTablesRegex)];
+      console.log(`\u627E\u5230 ${allTables.length} \u4E2A\u8868\u683C`);
+      for (let j = 0; j < allTables.length; j++) {
+        const tableContent2 = allTables[j][1];
+        if (tableContent2.includes("td_kj_qh") || tableContent2.includes("td_kj_date") || tableContent2.includes("td_kj_ball")) {
+          console.log(`\u8868\u683C ${j} \u53EF\u80FD\u5305\u542B\u5F00\u5956\u4FE1\u606F`);
+          const rowRegex2 = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+          const rows2 = [...tableContent2.matchAll(rowRegex2)];
+          console.log(`\u8868\u683C ${j} \u5305\u542B ${rows2.length} \u884C`);
+          for (let i = 1; i < rows2.length; i++) {
+            const row = rows2[i][1];
+            const issueRegex = /<td[^>]*class="[^"]*td_kj_qh[^"]*"[^>]*>([\d]+)<\/td>/;
+            const issueMatch = row.match(issueRegex);
+            if (!issueMatch)
+              continue;
+            const issue = issueMatch[1];
+            const dateRegex = /<td[^>]*class="[^"]*td_kj_date[^"]*"[^>]*>([\d]{4}-[\d]{2}-[\d]{2})<\/td>/;
+            const dateMatch = row.match(dateRegex);
+            if (!dateMatch)
+              continue;
+            const date = dateMatch[1];
+            const redRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*red[^"]*"[^>]*>([\d]{2})<\/td>/g;
+            const redMatches = [...row.matchAll(redRegex)];
+            if (redMatches.length !== 6)
+              continue;
+            const redOrder = redMatches.map((match) => match[1]);
+            const red = [...redOrder].sort((a, b) => a - b);
+            const blueRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*blue[^"]*"[^>]*>([\d]{2})<\/td>/;
+            const blueMatch = row.match(blueRegex);
+            if (!blueMatch)
+              continue;
+            const blue = blueMatch[1];
+            results.push({
+              issue,
+              date,
+              redOrder,
+              red,
+              blue
+            });
+            console.log(`\u6210\u529F\u89E3\u6790: \u671F\u53F7 ${issue}, \u65E5\u671F ${date}, \u7EA2\u7403 ${red}, \u84DD\u7403 ${blue}`);
+          }
+          if (results.length > 0) {
+            break;
+          }
+        }
+      }
       return results;
     }
     const tableContent = tableMatch[1];
-    console.log("\u8868\u683C\u5185\u5BB9\u957F\u5EA6:", tableContent.length, "\u5B57\u7B26");
-    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
-    let rowMatch;
-    let rows = [];
-    while ((rowMatch = rowPattern.exec(tableContent)) !== null) {
-      rows.push(rowMatch[1]);
-    }
-    console.log("\u5171\u627E\u5230", rows.length, "\u884C");
-    let latestIssue = 0;
-    let latestResult = null;
-    for (let row of rows) {
-      if (row.includes("\u671F\u53F7") && row.includes("\u5F00\u5956\u65E5\u671F") && row.includes("\u5F00\u5956\u53F7\u7801")) {
+    console.log("\u627E\u5230\u5F00\u5956\u4FE1\u606F\u8868\u683C");
+    const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+    const rows = [...tableContent.matchAll(rowRegex)];
+    console.log(`\u8868\u683C\u5305\u542B ${rows.length} \u884C`);
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i][1];
+      const issueRegex = /<td[^>]*class="[^"]*td_kj_qh[^"]*"[^>]*>([\d]+)<\/td>/;
+      const issueMatch = row.match(issueRegex);
+      if (!issueMatch)
         continue;
-      }
-      try {
-        const issueMatch = row.match(/(\d{7})/);
-        if (!issueMatch) {
-          continue;
-        }
-        const issue = issueMatch[1];
-        const dateMatch = row.match(/(\d{4}-\d{2}-\d{2})/);
-        if (!dateMatch) {
-          continue;
-        }
-        const date = dateMatch[1];
-        const numbersMatch = row.match(/([\d]{1,2})\s*([\d]{1,2})\s*([\d]{1,2})\s*([\d]{1,2})\s*([\d]{1,2})\s*([\d]{1,2})\s*([\d]{1,2})/);
-        if (!numbersMatch) {
-          console.log(`\u672A\u627E\u5230\u671F\u53F7 ${issue} \u7684\u53F7\u7801`);
-          continue;
-        }
-        const numbers = numbersMatch.slice(1).map(Number).filter((n) => !isNaN(n));
-        if (numbers.length === 7) {
-          const redOrder = numbers.slice(0, 6);
-          const red = [...redOrder].sort((a, b) => a - b);
-          const blue = numbers[6];
-          const isValidRed = red.every((n) => n >= 1 && n <= 33);
-          const isValidBlue = blue >= 1 && blue <= 16;
-          if (isValidRed && isValidBlue) {
-            const currentIssue = parseInt(issue);
-            if (currentIssue > latestIssue) {
-              latestIssue = currentIssue;
-              latestResult = { issue, red, blue, date, redOrder };
-              console.log(`\u627E\u5230\u6700\u65B0\u671F\u53F7: ${issue}, \u65E5\u671F ${date}, \u5F00\u5956\u53F7\u7801: ${redOrder.join(" ")} ${blue}`);
-            }
-          } else {
-            console.log(`\u53F7\u7801\u8303\u56F4\u9A8C\u8BC1\u5931\u8D25: ${issue} - \u7EA2\u7403: ${red}, \u84DD\u7403: ${blue}`);
-          }
-        } else {
-          console.log(`\u53F7\u7801\u6570\u91CF\u4E0D\u7B26\u5408\u9884\u671F: ${issue} - \u5B9E\u9645\u6570\u91CF: ${numbers.length}`);
-        }
-      } catch (e) {
-        console.error(`\u89E3\u6790\u884C\u6570\u636E\u5931\u8D25:`, e);
-      }
+      const issue = issueMatch[1];
+      const dateRegex = /<td[^>]*class="[^"]*td_kj_date[^"]*"[^>]*>([\d]{4}-[\d]{2}-[\d]{2})<\/td>/;
+      const dateMatch = row.match(dateRegex);
+      if (!dateMatch)
+        continue;
+      const date = dateMatch[1];
+      const redRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*red[^"]*"[^>]*>([\d]{2})<\/td>/g;
+      const redMatches = [...row.matchAll(redRegex)];
+      if (redMatches.length !== 6)
+        continue;
+      const redOrder = redMatches.map((match) => match[1]);
+      const red = [...redOrder].sort((a, b) => a - b);
+      const blueRegex = /<td[^>]*class="[^"]*td_kj_ball[^"]*blue[^"]*"[^>]*>([\d]{2})<\/td>/;
+      const blueMatch = row.match(blueRegex);
+      if (!blueMatch)
+        continue;
+      const blue = blueMatch[1];
+      results.push({
+        issue,
+        date,
+        redOrder,
+        red,
+        blue
+      });
+      console.log(`\u6210\u529F\u89E3\u6790: \u671F\u53F7 ${issue}, \u65E5\u671F ${date}, \u7EA2\u7403 ${red}, \u84DD\u7403 ${blue}`);
     }
-    if (latestResult) {
-      results.push(latestResult);
-      console.log(`\u89E3\u6790\u5B8C\u6210\uFF0C\u627E\u5230\u6700\u65B0\u4E00\u671F: ${latestResult.issue}`);
-    } else {
-      console.log(`\u89E3\u6790\u5B8C\u6210\uFF0C\u672A\u627E\u5230\u6709\u6548\u8BB0\u5F55`);
-    }
-  } catch (e) {
-    console.error("\u89E3\u6790\u8FC7\u7A0B\u4E2D\u53D1\u751F\u4E25\u91CD\u9519\u8BEF:", e);
-    console.error("\u9519\u8BEF\u5806\u6808:", e.stack);
+    console.log(`\u6210\u529F\u89E3\u6790\u5230 ${results.length} \u6761\u5F00\u5956\u8BB0\u5F55`);
+  } catch (error) {
+    console.error("\u89E3\u6790\u4E2D\u56FD\u798F\u5229\u5F69\u7968\u5B98\u7F51HTML\u5931\u8D25:", error);
+    console.error("\u9519\u8BEF\u5806\u6808:", error.stack);
   }
   return results;
 }
@@ -32326,7 +32652,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-XpZWhB/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-6YOU0S/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -32361,7 +32687,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-XpZWhB/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-6YOU0S/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

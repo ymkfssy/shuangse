@@ -7,9 +7,10 @@ compatibility_date = "2024-01-29"
 [[d1_databases]]
 binding = "DB"
 database_id = "0213ff68-3f2d-43ca-9381-52cab401fc46"
+database_name = "shuangse-lottery-db"
 
 # 定时任务配置 - 每天上午10点执行爬取任务
-[[triggers]]
+[triggers]
 crons = ["0 10 * * *"]
 
 # 环境变量
