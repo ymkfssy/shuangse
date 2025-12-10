@@ -606,12 +606,12 @@ function getAnalysisHTML() {
     
     <div class="nav">
         <ul>
-            <li><a href="#hot-cold" class="active" onclick="showSection('hot-cold')">冷热分析</a></li>
-            <li><a href="#parity" onclick="showSection('parity')">奇偶分析</a></li>
-            <li><a href="#size" onclick="showSection('size')">大小分析</a></li>
-            <li><a href="#range" onclick="showSection('range')">区间分析</a></li>
-            <li><a href="#missing" onclick="showSection('missing')">遗漏分析</a></li>
-            <li><a href="#recommendation" onclick="showSection('recommendation')">号码推荐</a></li>
+            <li><a href="#hot-cold" class="active" onclick="showSection('hot-cold'); return false;">冷热分析</a></li>
+            <li><a href="#parity" onclick="showSection('parity'); return false;">奇偶分析</a></li>
+            <li><a href="#size" onclick="showSection('size'); return false;">大小分析</a></li>
+            <li><a href="#range" onclick="showSection('range'); return false;">区间分析</a></li>
+            <li><a href="#missing" onclick="showSection('missing'); return false;">遗漏分析</a></li>
+            <li><a href="#recommendation" onclick="showSection('recommendation'); return false;">号码推荐</a></li>
         </ul>
     </div>
     
@@ -891,19 +891,35 @@ function getAnalysisHTML() {
         }
         
         function showSection(sectionId) {
+            // 阻止默认的锚点跳转行为
+            event.preventDefault();
+            
             // 隐藏所有分析区域
-            document.querySelectorAll('.analysis-section').forEach(section => {
+            const sections = document.querySelectorAll('.analysis-section');
+            sections.forEach(section => {
                 section.style.display = 'none';
             });
             
             // 显示选中的分析区域
-            document.getElementById(sectionId).style.display = 'block';
+            const targetSection = document.getElementById(sectionId);
+            if (targetSection) {
+                targetSection.style.display = 'block';
+                
+                // 将页面滚动到分析区域顶部
+                targetSection.scrollIntoView({ behavior: 'smooth' });
+            }
             
             // 更新导航栏激活状态
-            document.querySelectorAll('.nav a').forEach(link => {
+            const navLinks = document.querySelectorAll('.nav a');
+            navLinks.forEach(link => {
                 link.classList.remove('active');
             });
-            document.querySelector('[href="#' + sectionId + '"]').classList.add('active');
+            
+            // 设置当前导航项为激活状态
+            const activeLink = document.querySelector('[href="#' + sectionId + '"]');
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
         }
         
         async function loadHotColdAnalysis() {
@@ -913,11 +929,11 @@ function getAnalysisHTML() {
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
-                    // 更新统计数据
-                    document.getElementById('hot-red-count').textContent = result.hotRedNumbers.length;
-                    document.getElementById('cold-red-count').textContent = result.coldRedNumbers.length;
-                    document.getElementById('hot-blue-count').textContent = result.hotBlueNumbers.length;
-                    document.getElementById('cold-blue-count').textContent = result.coldBlueNumbers.length;
+                    // 更新统计数据 - 显示实际号码而不是数量
+                    document.getElementById('hot-red-count').textContent = result.hotRedNumbers.join(', ');
+                    document.getElementById('cold-red-count').textContent = result.coldRedNumbers.join(', ');
+                    document.getElementById('hot-blue-count').textContent = result.hotBlueNumbers.join(', ');
+                    document.getElementById('cold-blue-count').textContent = result.coldBlueNumbers.join(', ');
                     
                     // 更新红球冷热表格
                     updateHotColdTable('red-hot-cold-table', result.redFrequency);
@@ -1050,26 +1066,23 @@ function getAnalysisHTML() {
                 
                 if (response.ok && result.success) {
                     // 更新统计数据
-                    // 注意：服务器端返回的是区间组合比例，不是整体区间比例
-                    // 这里我们计算大致的区间比例（简化处理）
-                    const totalRatio = parseFloat(result.ratio222) + parseFloat(result.ratio312) + parseFloat(result.ratio321) + parseFloat(result.ratio231) + parseFloat(result.ratio132) + parseFloat(result.ratio123) + parseFloat(result.ratio411) + parseFloat(result.ratio420) + parseFloat(result.ratio402) + parseFloat(result.ratio141) + parseFloat(result.ratio240) + parseFloat(result.ratio042) + parseFloat(result.ratio114) + parseFloat(result.ratio204) + parseFloat(result.ratio024) + parseFloat(result.ratio510) + parseFloat(result.ratio501) + parseFloat(result.ratio150) + parseFloat(result.ratio051) + parseFloat(result.ratio105) + parseFloat(result.ratio015) + parseFloat(result.ratio600) + parseFloat(result.ratio060) + parseFloat(result.ratio006);
+                    // 使用服务器返回的实际区间百分比数据
+                    const range1Ratio = parseFloat(result.redRange1Percent) || 0;
+                    const range2Ratio = parseFloat(result.redRange2Percent) || 0;
+                    const range3Ratio = parseFloat(result.redRange3Percent) || 0;
                     
-                    // 计算每个区间的大致出号比例
-                    const range1Ratio = (parseFloat(result.ratio222) * (2/6) + parseFloat(result.ratio312) * (3/6) + parseFloat(result.ratio321) * (3/6) + parseFloat(result.ratio231) * (2/6) + parseFloat(result.ratio132) * (1/6) + parseFloat(result.ratio123) * (1/6) + parseFloat(result.ratio411) * (4/6) + parseFloat(result.ratio420) * (4/6) + parseFloat(result.ratio402) * (4/6) + parseFloat(result.ratio141) * (1/6) + parseFloat(result.ratio240) * (2/6) + parseFloat(result.ratio042) * 0 + parseFloat(result.ratio114) * (1/6) + parseFloat(result.ratio204) * (2/6) + parseFloat(result.ratio024) * 0 + parseFloat(result.ratio510) * (5/6) + parseFloat(result.ratio501) * (5/6) + parseFloat(result.ratio150) * (1/6) + parseFloat(result.ratio051) * 0 + parseFloat(result.ratio105) * (1/6) + parseFloat(result.ratio015) * 0 + parseFloat(result.ratio600) * 1 + parseFloat(result.ratio060) * 0 + parseFloat(result.ratio006) * 0) / totalRatio * 100;
+                    // 蓝球区间比例
+                    const blueRange1Ratio = parseFloat(result.blueRange1Percent) || 0;
+                    const blueRange2Ratio = parseFloat(result.blueRange2Percent) || 0;
                     
-                    const range2Ratio = (parseFloat(result.ratio222) * (2/6) + parseFloat(result.ratio312) * (1/6) + parseFloat(result.ratio321) * (2/6) + parseFloat(result.ratio231) * (3/6) + parseFloat(result.ratio132) * (3/6) + parseFloat(result.ratio123) * (2/6) + parseFloat(result.ratio411) * (1/6) + parseFloat(result.ratio420) * (2/6) + parseFloat(result.ratio402) * 0 + parseFloat(result.ratio141) * (4/6) + parseFloat(result.ratio240) * (4/6) + parseFloat(result.ratio042) * (4/6) + parseFloat(result.ratio114) * (1/6) + parseFloat(result.ratio204) * 0 + parseFloat(result.ratio024) * (2/6) + parseFloat(result.ratio510) * (1/6) + parseFloat(result.ratio501) * 0 + parseFloat(result.ratio150) * (5/6) + parseFloat(result.ratio051) * (5/6) + parseFloat(result.ratio105) * 0 + parseFloat(result.ratio015) * (1/6) + parseFloat(result.ratio600) * 0 + parseFloat(result.ratio060) * 1 + parseFloat(result.ratio006) * 0) / totalRatio * 100;
+                    // 确保百分比在合理范围内
+                    const clampPercent = (value) => Math.max(0, Math.min(100, value));
                     
-                    const range3Ratio = 100 - range1Ratio - range2Ratio;
-                    
-                    // 蓝球区间比例（简化处理）
-                    const blueRange1Ratio = 50;
-                    const blueRange2Ratio = 50;
-                    
-                    document.getElementById('range-red-1').textContent = range1Ratio.toFixed(1) + '%';
-                    document.getElementById('range-red-2').textContent = range2Ratio.toFixed(1) + '%';
-                    document.getElementById('range-red-3').textContent = range3Ratio.toFixed(1) + '%';
-                    document.getElementById('range-blue-1').textContent = blueRange1Ratio.toFixed(1) + '%';
-                    document.getElementById('range-blue-2').textContent = blueRange2Ratio.toFixed(1) + '%';
+                    document.getElementById('range-red-1').textContent = clampPercent(range1Ratio).toFixed(1) + '%';
+                    document.getElementById('range-red-2').textContent = clampPercent(range2Ratio).toFixed(1) + '%';
+                    document.getElementById('range-red-3').textContent = clampPercent(range3Ratio).toFixed(1) + '%';
+                    document.getElementById('range-blue-1').textContent = clampPercent(blueRange1Ratio).toFixed(1) + '%';
+                    document.getElementById('range-blue-2').textContent = clampPercent(blueRange2Ratio).toFixed(1) + '%';
                     
                     // 更新红球区间图表
                     updateDistributionChart('red-range-chart', [
@@ -1688,10 +1701,28 @@ function getAppHTML() {
         };
         document.head.appendChild(script);
         
-        // 只在DOM加载完成后调用一次getHistoryNumbers
+        // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM加载完成，初始化历史数据');
             getHistoryNumbers();
+            
+            // 检查是否有从推荐生成的号码
+            const generatedNumbers = localStorage.getItem('generatedNumbers');
+            const fromRecommendation = localStorage.getItem('fromRecommendation');
+            
+            if (generatedNumbers && fromRecommendation) {
+                try {
+                    const numbers = JSON.parse(generatedNumbers);
+                    displayGeneratedNumbers(numbers, numbers.length);
+                    showMessage('已显示根据推荐生成的号码', 'success');
+                    
+                    // 清除本地存储中的数据，避免下次页面加载时重复显示
+                    localStorage.removeItem('generatedNumbers');
+                    localStorage.removeItem('fromRecommendation');
+                } catch (error) {
+                    console.error('解析生成的号码失败:', error);
+                }
+            }
         });
     </script>
 </body>

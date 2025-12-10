@@ -38,7 +38,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// .wrangler/tmp/bundle-XfFpoY/checked-fetch.js
+// .wrangler/tmp/bundle-7wKaTy/checked-fetch.js
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
     (typeof request === "string" ? new Request(request, init) : request).url
@@ -56,7 +56,7 @@ function checkURL(request, init) {
 }
 var urls;
 var init_checked_fetch = __esm({
-  ".wrangler/tmp/bundle-XfFpoY/checked-fetch.js"() {
+  ".wrangler/tmp/bundle-7wKaTy/checked-fetch.js"() {
     urls = /* @__PURE__ */ new Set();
     __name(checkURL, "checkURL");
     globalThis.fetch = new Proxy(globalThis.fetch, {
@@ -2407,11 +2407,11 @@ var init_auth = __esm({
   }
 });
 
-// .wrangler/tmp/bundle-XfFpoY/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-7wKaTy/middleware-loader.entry.ts
 init_checked_fetch();
 init_modules_watch_stub();
 
-// .wrangler/tmp/bundle-XfFpoY/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-7wKaTy/middleware-insertion-facade.js
 init_checked_fetch();
 init_modules_watch_stub();
 
@@ -31171,7 +31171,7 @@ async function analyzeRange(request, env) {
     const url = new URL(request.url);
     const periods = url.searchParams.get("periods") || "100";
     const limit = periods === "all" ? 1e4 : parseInt(periods);
-    const result = await db.prepare("SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT ?").bind(limit).all();
+    const result = await db.prepare("SELECT red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC LIMIT ?").bind(limit).all();
     if (!result.results || result.results.length === 0) {
       return new Response(JSON.stringify({ error: "\u6CA1\u6709\u8DB3\u591F\u7684\u5386\u53F2\u6570\u636E\u8FDB\u884C\u5206\u6790" }), {
         status: 400,
@@ -31186,6 +31186,11 @@ async function analyzeRange(request, env) {
     let range213 = 0;
     let range123 = 0;
     let otherRanges = 0;
+    let redRange1Count = 0;
+    let redRange2Count = 0;
+    let redRange3Count = 0;
+    let blueRange1Count = 0;
+    let blueRange2Count = 0;
     result.results.forEach((row) => {
       const reds = [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6];
       let range1 = 0;
@@ -31195,12 +31200,21 @@ async function analyzeRange(request, env) {
         const num = parseInt(red);
         if (num <= 11) {
           range1++;
+          redRange1Count++;
         } else if (num <= 22) {
           range2++;
+          redRange2Count++;
         } else {
           range3++;
+          redRange3Count++;
         }
       });
+      const blue = parseInt(row.blue);
+      if (blue <= 8) {
+        blueRange1Count++;
+      } else {
+        blueRange2Count++;
+      }
       const sorted = [range1, range2, range3].sort((a, b) => b - a);
       if (range1 === 2 && range2 === 2 && range3 === 2) {
         range222++;
@@ -31225,15 +31239,30 @@ async function analyzeRange(request, env) {
       }
     });
     const total = result.results.length;
+    const totalRedBalls = total * 6;
+    const totalBlueBalls = total;
+    const redRange1Percent = totalRedBalls > 0 ? (redRange1Count / totalRedBalls * 100).toFixed(1) : 0;
+    const redRange2Percent = totalRedBalls > 0 ? (redRange2Count / totalRedBalls * 100).toFixed(1) : 0;
+    const redRange3Percent = totalRedBalls > 0 ? (redRange3Count / totalRedBalls * 100).toFixed(1) : 0;
+    const blueRange1Percent = totalBlueBalls > 0 ? (blueRange1Count / totalBlueBalls * 100).toFixed(1) : 0;
+    const blueRange2Percent = totalBlueBalls > 0 ? (blueRange2Count / totalBlueBalls * 100).toFixed(1) : 0;
     return new Response(JSON.stringify({
       success: true,
+      // 区间组合比例
       ratio222: (range222 / total * 100).toFixed(1),
       ratio321: (range321 / total * 100).toFixed(1),
       ratio312: (range312 / total * 100).toFixed(1),
       ratio231: (range231 / total * 100).toFixed(1),
       ratio132: (range132 / total * 100).toFixed(1),
       ratio213: (range213 / total * 100).toFixed(1),
-      ratio123: (range123 / total * 100).toFixed(1)
+      ratio123: (range123 / total * 100).toFixed(1),
+      // 红球区间百分比
+      redRange1Percent,
+      redRange2Percent,
+      redRange3Percent,
+      // 蓝球区间百分比
+      blueRange1Percent,
+      blueRange2Percent
     }), {
       headers: { "Content-Type": "application/json" }
     });
@@ -32290,19 +32319,35 @@ function getAnalysisHTML() {
         }
         
         function showSection(sectionId) {
+            // \u963B\u6B62\u9ED8\u8BA4\u7684\u951A\u70B9\u8DF3\u8F6C\u884C\u4E3A
+            event.preventDefault();
+            
             // \u9690\u85CF\u6240\u6709\u5206\u6790\u533A\u57DF
-            document.querySelectorAll('.analysis-section').forEach(section => {
+            const sections = document.querySelectorAll('.analysis-section');
+            sections.forEach(section => {
                 section.style.display = 'none';
             });
             
             // \u663E\u793A\u9009\u4E2D\u7684\u5206\u6790\u533A\u57DF
-            document.getElementById(sectionId).style.display = 'block';
+            const targetSection = document.getElementById(sectionId);
+            if (targetSection) {
+                targetSection.style.display = 'block';
+                
+                // \u5C06\u9875\u9762\u6EDA\u52A8\u5230\u5206\u6790\u533A\u57DF\u9876\u90E8
+                targetSection.scrollIntoView({ behavior: 'smooth' });
+            }
             
             // \u66F4\u65B0\u5BFC\u822A\u680F\u6FC0\u6D3B\u72B6\u6001
-            document.querySelectorAll('.nav a').forEach(link => {
+            const navLinks = document.querySelectorAll('.nav a');
+            navLinks.forEach(link => {
                 link.classList.remove('active');
             });
-            document.querySelector('[href="#' + sectionId + '"]').classList.add('active');
+            
+            // \u8BBE\u7F6E\u5F53\u524D\u5BFC\u822A\u9879\u4E3A\u6FC0\u6D3B\u72B6\u6001
+            const activeLink = document.querySelector('[href="#' + sectionId + '"]');
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
         }
         
         async function loadHotColdAnalysis() {
@@ -32449,56 +32494,14 @@ function getAnalysisHTML() {
                 
                 if (response.ok && result.success) {
                     // \u66F4\u65B0\u7EDF\u8BA1\u6570\u636E
-                    // \u6CE8\u610F\uFF1A\u670D\u52A1\u5668\u7AEF\u8FD4\u56DE\u7684\u662F\u533A\u95F4\u7EC4\u5408\u6BD4\u4F8B\uFF0C\u4E0D\u662F\u6574\u4F53\u533A\u95F4\u6BD4\u4F8B
-                    // \u8FD9\u91CC\u6211\u4EEC\u8BA1\u7B97\u5927\u81F4\u7684\u533A\u95F4\u6BD4\u4F8B\uFF08\u7B80\u5316\u5904\u7406\uFF09
-                    const ratios = [
-                        'ratio222', 'ratio312', 'ratio321', 'ratio231', 'ratio132', 'ratio123',
-                        'ratio411', 'ratio420', 'ratio402', 'ratio141', 'ratio240', 'ratio042',
-                        'ratio114', 'ratio204', 'ratio024', 'ratio510', 'ratio501', 'ratio150',
-                        'ratio051', 'ratio105', 'ratio015', 'ratio600', 'ratio060', 'ratio006'
-                    ];
+                    // \u4F7F\u7528\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u5B9E\u9645\u533A\u95F4\u767E\u5206\u6BD4\u6570\u636E
+                    const range1Ratio = parseFloat(result.redRange1Percent) || 0;
+                    const range2Ratio = parseFloat(result.redRange2Percent) || 0;
+                    const range3Ratio = parseFloat(result.redRange3Percent) || 0;
                     
-                    // \u8BA1\u7B97\u603B\u6BD4\u4F8B\uFF0C\u786E\u4FDD\u4E0D\u4F1A\u51FA\u73B0NaN
-                    const totalRatio = ratios.reduce((sum, ratioName) => {
-                        const ratio = parseFloat(result[ratioName]) || 0;
-                        return sum + ratio;
-                    }, 0);
-                    
-                    // \u8BA1\u7B97\u6BCF\u4E2A\u533A\u95F4\u7684\u5927\u81F4\u51FA\u53F7\u6BD4\u4F8B\uFF0C\u6DFB\u52A0\u5B89\u5168\u68C0\u67E5\u9632\u6B62\u9664\u4EE50
-                    const calculateRangeRatio = (rangeFactors) => {
-                        if (totalRatio === 0) return 0;
-                        
-                        const numerator = ratios.reduce((sum, ratioName, index) => {
-                            const ratio = parseFloat(result[ratioName]) || 0;
-                            return sum + ratio * rangeFactors[index];
-                        }, 0);
-                        
-                        return numerator / totalRatio * 100;
-                    };
-                    
-                    // \u5B9A\u4E49\u6BCF\u4E2A\u6BD4\u4F8B\u5BF9\u5E94\u7684\u533A\u95F41\u3001\u533A\u95F42\u3001\u533A\u95F43\u7684\u56E0\u5B50
-                    const range1Factors = [
-                        2/6, 3/6, 3/6, 2/6, 1/6, 1/6,
-                        4/6, 4/6, 4/6, 1/6, 2/6, 0,
-                        1/6, 2/6, 0, 5/6, 5/6, 1/6,
-                        0, 1/6, 0, 1, 0, 0
-                    ];
-                    
-                    const range2Factors = [
-                        2/6, 1/6, 2/6, 3/6, 3/6, 2/6,
-                        1/6, 2/6, 0, 4/6, 4/6, 4/6,
-                        1/6, 0, 2/6, 1/6, 0, 5/6,
-                        5/6, 0, 1/6, 0, 1, 0
-                    ];
-                    
-                    const range1Ratio = calculateRangeRatio(range1Factors);
-                    const range2Ratio = calculateRangeRatio(range2Factors);
-                    const range3Ratio = 100 - range1Ratio - range2Ratio;
-                    
-                    // \u84DD\u7403\u533A\u95F4\u6BD4\u4F8B\uFF1A\u6839\u636E\u5B9E\u9645\u6570\u636E\u8BA1\u7B97\uFF08\u84DD\u74031-8\u4E3A\u533A\u95F41\uFF0C9-16\u4E3A\u533A\u95F42\uFF09
-                    // \u5047\u8BBE\u670D\u52A1\u5668\u8FD4\u56DE\u4E86\u84DD\u7403\u7684\u533A\u95F4\u6570\u636E
-                    const blueRange1Ratio = result.blueRange1 || 50; // \u5982\u679C\u670D\u52A1\u5668\u6CA1\u6709\u8FD4\u56DE\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u503C
-                    const blueRange2Ratio = 100 - blueRange1Ratio;
+                    // \u84DD\u7403\u533A\u95F4\u6BD4\u4F8B
+                    const blueRange1Ratio = parseFloat(result.blueRange1Percent) || 0;
+                    const blueRange2Ratio = parseFloat(result.blueRange2Percent) || 0;
                     
                     // \u786E\u4FDD\u767E\u5206\u6BD4\u5728\u5408\u7406\u8303\u56F4\u5185
                     const clampPercent = (value) => Math.max(0, Math.min(100, value));
@@ -33204,7 +33207,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-XfFpoY/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-7wKaTy/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -33238,7 +33241,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-XfFpoY/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-7wKaTy/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

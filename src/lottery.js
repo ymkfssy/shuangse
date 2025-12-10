@@ -1419,8 +1419,13 @@ export async function analyzeHotCold(request, env) {
   try {
     const db = await getDB(env);
     
+    // 解析查询参数
+    const url = new URL(request.url);
+    const periods = url.searchParams.get('periods') || '100';
+    const limit = periods === 'all' ? 10000 : parseInt(periods); // 设置一个较大的数来表示全部
+    
     // 获取所有历史数据
-    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC LIMIT 100').all();
+    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC LIMIT ?').bind(limit).all();
     
     if (!result.results || result.results.length === 0) {
       return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
@@ -1457,12 +1462,13 @@ export async function analyzeHotCold(request, env) {
     const blueLastOccurrence = {};
     
     // 初始化所有号码的遗漏值为最大
+    const maxPeriod = result.results.length;
     for (let i = 1; i <= 33; i++) {
-      redLastOccurrence[String(i).padStart(2, '0')] = 101; // 比最大期数大1
+      redLastOccurrence[String(i).padStart(2, '0')] = maxPeriod + 1; // 比最大期数大1
     }
     
     for (let i = 1; i <= 16; i++) {
-      blueLastOccurrence[String(i).padStart(2, '0')] = 101; // 比最大期数大1
+      blueLastOccurrence[String(i).padStart(2, '0')] = maxPeriod + 1; // 比最大期数大1
     }
     
     // 计算每个号码的最近出现期数
@@ -1548,8 +1554,13 @@ export async function analyzeParity(request, env) {
   try {
     const db = await getDB(env);
     
-    // 获取最近100期的数据
-    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT 100').all();
+    // 解析查询参数
+    const url = new URL(request.url);
+    const periods = url.searchParams.get('periods') || '100';
+    const limit = periods === 'all' ? 10000 : parseInt(periods);
+    
+    // 获取指定期数的数据
+    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT ?').bind(limit).all();
     
     if (!result.results || result.results.length === 0) {
       return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
@@ -1631,8 +1642,13 @@ export async function analyzeSize(request, env) {
   try {
     const db = await getDB(env);
     
-    // 获取最近100期的数据
-    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT 100').all();
+    // 解析查询参数
+    const url = new URL(request.url);
+    const periods = url.searchParams.get('periods') || '100';
+    const limit = periods === 'all' ? 10000 : parseInt(periods);
+    
+    // 获取指定期数的数据
+    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT ?').bind(limit).all();
     
     if (!result.results || result.results.length === 0) {
       return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
@@ -1714,8 +1730,13 @@ export async function analyzeRange(request, env) {
   try {
     const db = await getDB(env);
     
-    // 获取最近100期的数据
-    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6 FROM lottery_history ORDER BY issue_number DESC LIMIT 100').all();
+    // 解析查询参数
+    const url = new URL(request.url);
+    const periods = url.searchParams.get('periods') || '100';
+    const limit = periods === 'all' ? 10000 : parseInt(periods);
+    
+    // 获取指定期数的数据（包括蓝球）
+    const result = await db.prepare('SELECT red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC LIMIT ?').bind(limit).all();
     
     if (!result.results || result.results.length === 0) {
       return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
@@ -1734,6 +1755,15 @@ export async function analyzeRange(request, env) {
     let range123 = 0; // 1-2-3分布
     let otherRanges = 0; // 其他分布
     
+    // 统计红球各区间出现次数
+    let redRange1Count = 0;
+    let redRange2Count = 0;
+    let redRange3Count = 0;
+    
+    // 统计蓝球各区间出现次数（蓝球1-8为区间1，9-16为区间2）
+    let blueRange1Count = 0;
+    let blueRange2Count = 0;
+    
     result.results.forEach(row => {
       const reds = [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6];
       let range1 = 0;
@@ -1744,12 +1774,23 @@ export async function analyzeRange(request, env) {
         const num = parseInt(red);
         if (num <= 11) {
           range1++;
+          redRange1Count++;
         } else if (num <= 22) {
           range2++;
+          redRange2Count++;
         } else {
           range3++;
+          redRange3Count++;
         }
       });
+      
+      // 统计蓝球区间
+      const blue = parseInt(row.blue);
+      if (blue <= 8) {
+        blueRange1Count++;
+      } else {
+        blueRange2Count++;
+      }
       
       // 排序后比较分布
       const sorted = [range1, range2, range3].sort((a, b) => b - a);
@@ -1779,16 +1820,35 @@ export async function analyzeRange(request, env) {
     });
     
     const total = result.results.length;
+    const totalRedBalls = total * 6; // 每期6个红球
+    const totalBlueBalls = total; // 每期1个蓝球
+    
+    // 计算红球区间百分比
+    const redRange1Percent = totalRedBalls > 0 ? ((redRange1Count / totalRedBalls) * 100).toFixed(1) : 0;
+    const redRange2Percent = totalRedBalls > 0 ? ((redRange2Count / totalRedBalls) * 100).toFixed(1) : 0;
+    const redRange3Percent = totalRedBalls > 0 ? ((redRange3Count / totalRedBalls) * 100).toFixed(1) : 0;
+    
+    // 计算蓝球区间百分比
+    const blueRange1Percent = totalBlueBalls > 0 ? ((blueRange1Count / totalBlueBalls) * 100).toFixed(1) : 0;
+    const blueRange2Percent = totalBlueBalls > 0 ? ((blueRange2Count / totalBlueBalls) * 100).toFixed(1) : 0;
     
     return new Response(JSON.stringify({
       success: true,
+      // 区间组合比例
       ratio222: ((range222 / total) * 100).toFixed(1),
       ratio321: ((range321 / total) * 100).toFixed(1),
       ratio312: ((range312 / total) * 100).toFixed(1),
       ratio231: ((range231 / total) * 100).toFixed(1),
       ratio132: ((range132 / total) * 100).toFixed(1),
       ratio213: ((range213 / total) * 100).toFixed(1),
-      ratio123: ((range123 / total) * 100).toFixed(1)
+      ratio123: ((range123 / total) * 100).toFixed(1),
+      // 红球区间百分比
+      redRange1Percent: redRange1Percent,
+      redRange2Percent: redRange2Percent,
+      redRange3Percent: redRange3Percent,
+      // 蓝球区间百分比
+      blueRange1Percent: blueRange1Percent,
+      blueRange2Percent: blueRange2Percent
     }), {
       headers: { 'Content-Type': 'application/json' }
     });
@@ -1806,8 +1866,13 @@ export async function analyzeMissing(request, env) {
   try {
     const db = await getDB(env);
     
-    // 获取所有历史数据
-    const result = await db.prepare('SELECT issue_number, red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC').all();
+    // 解析查询参数
+    const url = new URL(request.url);
+    const periods = url.searchParams.get('periods') || '100';
+    const limit = periods === 'all' ? 10000 : parseInt(periods);
+    
+    // 获取指定期数的数据
+    const result = await db.prepare('SELECT issue_number, red_1, red_2, red_3, red_4, red_5, red_6, blue FROM lottery_history ORDER BY issue_number DESC LIMIT ?').bind(limit).all();
     
     if (!result.results || result.results.length === 0) {
       return new Response(JSON.stringify({ error: '没有足够的历史数据进行分析' }), {
