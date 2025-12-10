@@ -32320,7 +32320,9 @@ function getAnalysisHTML() {
         
         function showSection(sectionId) {
             // \u963B\u6B62\u9ED8\u8BA4\u7684\u951A\u70B9\u8DF3\u8F6C\u884C\u4E3A
-            event.preventDefault();
+            if (event) {
+                event.preventDefault();
+            }
             
             // \u9690\u85CF\u6240\u6709\u5206\u6790\u533A\u57DF
             const sections = document.querySelectorAll('.analysis-section');
@@ -32332,9 +32334,6 @@ function getAnalysisHTML() {
             const targetSection = document.getElementById(sectionId);
             if (targetSection) {
                 targetSection.style.display = 'block';
-                
-                // \u5C06\u9875\u9762\u6EDA\u52A8\u5230\u5206\u6790\u533A\u57DF\u9876\u90E8
-                targetSection.scrollIntoView({ behavior: 'smooth' });
             }
             
             // \u66F4\u65B0\u5BFC\u822A\u680F\u6FC0\u6D3B\u72B6\u6001
@@ -32347,6 +32346,28 @@ function getAnalysisHTML() {
             const activeLink = document.querySelector('[href="#' + sectionId + '"]');
             if (activeLink) {
                 activeLink.classList.add('active');
+            }
+            
+            // \u6839\u636E\u9009\u4E2D\u7684\u533A\u57DF\u91CD\u65B0\u52A0\u8F7D\u5BF9\u5E94\u7684\u6570\u636E
+            switch (sectionId) {
+                case 'hot-cold':
+                    loadHotColdAnalysis();
+                    break;
+                case 'parity':
+                    loadParityAnalysis();
+                    break;
+                case 'size':
+                    loadSizeAnalysis();
+                    break;
+                case 'range':
+                    loadRangeAnalysis();
+                    break;
+                case 'missing':
+                    loadMissingAnalysis();
+                    break;
+                case 'recommendation':
+                    loadRecommendation();
+                    break;
             }
         }
         
@@ -32394,7 +32415,7 @@ function getAnalysisHTML() {
                     statusText = '\u6B63\u5E38';
                 }
                 
-                row.innerHTML = "<td>" + item.number + "</td><td>" + item.count + "</td><td>" + statusText + "</td><td>" + item.lastDraw + "</td>";
+                row.innerHTML = "<td>" + item.number + "</td><td>" + item.count + "</td><td>" + statusText + "</td><td>" + item.lastOccurrence + "</td>";
                 
                 tbody.appendChild(row);
             });

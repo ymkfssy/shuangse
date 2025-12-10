@@ -892,7 +892,9 @@ function getAnalysisHTML() {
         
         function showSection(sectionId) {
             // 阻止默认的锚点跳转行为
-            event.preventDefault();
+            if (event) {
+                event.preventDefault();
+            }
             
             // 隐藏所有分析区域
             const sections = document.querySelectorAll('.analysis-section');
@@ -904,9 +906,6 @@ function getAnalysisHTML() {
             const targetSection = document.getElementById(sectionId);
             if (targetSection) {
                 targetSection.style.display = 'block';
-                
-                // 将页面滚动到分析区域顶部
-                targetSection.scrollIntoView({ behavior: 'smooth' });
             }
             
             // 更新导航栏激活状态
@@ -919,6 +918,28 @@ function getAnalysisHTML() {
             const activeLink = document.querySelector('[href="#' + sectionId + '"]');
             if (activeLink) {
                 activeLink.classList.add('active');
+            }
+            
+            // 根据选中的区域重新加载对应的数据
+            switch (sectionId) {
+                case 'hot-cold':
+                    loadHotColdAnalysis();
+                    break;
+                case 'parity':
+                    loadParityAnalysis();
+                    break;
+                case 'size':
+                    loadSizeAnalysis();
+                    break;
+                case 'range':
+                    loadRangeAnalysis();
+                    break;
+                case 'missing':
+                    loadMissingAnalysis();
+                    break;
+                case 'recommendation':
+                    loadRecommendation();
+                    break;
             }
         }
         
@@ -966,7 +987,7 @@ function getAnalysisHTML() {
                     statusText = '正常';
                 }
                 
-                row.innerHTML = "<td>" + item.number + "</td><td>" + item.count + "</td><td>" + statusText + "</td><td>" + item.lastDraw + "</td>";
+                row.innerHTML = "<td>" + item.number + "</td><td>" + item.count + "</td><td>" + statusText + "</td><td>" + item.lastOccurrence + "</td>";
                 
                 tbody.appendChild(row);
             });
