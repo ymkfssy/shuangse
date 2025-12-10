@@ -531,7 +531,7 @@ async function analyzeMissing(periods = 50) {
 **核心实现**:
 
 ```javascript
-async function generateRecommendation(env) {
+export async function generateRecommendation(request, env) {
   try {
     const db = await getDB(env);
     
@@ -549,7 +549,6 @@ async function generateRecommendation(env) {
     const redCounts = {};
     const blueCounts = {};
     
-    // 初始化计数器
     for (let i = 1; i <= 33; i++) {
       redCounts[String(i).padStart(2, '0')] = 0;
     }
@@ -558,7 +557,6 @@ async function generateRecommendation(env) {
       blueCounts[String(i).padStart(2, '0')] = 0;
     }
     
-    // 统计号码出现频率
     result.results.forEach(row => {
       // 统计红球
       [row.red_1, row.red_2, row.red_3, row.red_4, row.red_5, row.red_6].forEach(red => {
@@ -629,7 +627,7 @@ async function generateRecommendation(env) {
     });
   } catch (error) {
     console.error('生成推荐号码失败:', error);
-    return new Response(JSON.stringify({ success: false, error: '生成推荐号码失败' }), {
+    return new Response(JSON.stringify({ success: false, error: '分析失败，请稍后重试' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -642,8 +640,60 @@ async function generateRecommendation(env) {
 1. **数据基础**: 基于最近100期历史数据
 2. **热号选择**: 优先选择近期出现频率较高的号码
 3. **号码平衡**: 红球组合采用3热3非热的搭配原则
-4. **蓝球策略**: 优先选择近期热门蓝球
-5. **多样性**: 生成多组不同的推荐号码
+4. **蓝球策略**: 优先选择近期热门蓝球（前5名）
+5. **多样性**: 生成5组不同的推荐号码
+6. **API接口**: 通过`/api/analysis/recommendation`提供推荐服务
+
+### 4.1 推荐号码使用流程
+
+在前端页面，用户可以通过点击"生成推荐号码"按钮获取推荐号码，然后可以基于推荐号码生成选号结果。
+
+**前端实现**:
+
+```javascript
+// 生成推荐号码
+async function generateRecommendation() {
+  try {
+    const response = await fetch('/api/analysis/recommendation');
+    if (!response.ok) {
+      throw new Error('生成推荐号码失败');
+    }
+    
+    const data = await response.json();
+    displayRecommendations(data.recommendations);
+    showMessage('推荐号码生成成功！', 'success');
+  } catch (error) {
+    showMessage('生成推荐号码失败: ' + error.message, 'error');
+  }
+}
+
+// 基于推荐生成号码
+async function generateFromRecommendation() {
+  try {
+    const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: 5, useRecommendation: true })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok) {
+      // 保存推荐生成的号码到本地存储
+      localStorage.setItem('generatedNumbers', JSON.stringify(result.numbers));
+      localStorage.setItem('fromRecommendation', 'true');
+      
+      // 跳转到主界面
+      window.location.href = '/app.html';
+    } else {
+      showMessage(result.error, 'error');
+    }
+  } catch (error) {
+    console.error('生成号码失败:', error);
+    showMessage('生成号码失败，请稍后重试', 'error');
+  }
+}
+```
 
 ## 5. 前端实现与交互
 
@@ -652,103 +702,139 @@ async function generateRecommendation(env) {
 1. **登录页面** (`public/login.html`)
    - 用户登录和注册功能
    - 表单验证
+   - 密码加密处理
 
 2. **主应用页面** (`public/app.html`)
-   - 号码生成功能
-   - 历史数据展示
-   - 个人记录管理
+   - 号码生成功能（随机生成、基于推荐生成）
+   - 历史数据展示（最近10期、分页加载）
+   - 个人生成号码记录管理
+   - 总组合数显示
 
 3. **号码分析页面** (`public/analysis.html`)
-   - 多维度号码分析
-   - 可视化图表
-   - 号码推荐
+   - 多维度号码分析（冷热、奇偶、大小、区间、遗漏）
+   - 可视化图表展示
+   - 智能号码推荐
+   - 高遗漏值号码提示
 
 **核心交互功能**:
 
-```javascript
-// 页面导航
-function showSection(sectionId) {
-  // 阻止默认的锚点跳转行为
-  if (event) {
-    event.preventDefault();
-  }
-  
-  // 隐藏所有分析区域
-  const sections = document.querySelectorAll('.analysis-section');
-  sections.forEach(section => {
-    section.style.display = 'none';
-  });
-  
-  // 显示选中的分析区域
-  const targetSection = document.getElementById(sectionId);
-  if (targetSection) {
-    targetSection.style.display = 'block';
-  }
-  
-  // 更新导航栏激活状态
-  const navLinks = document.querySelectorAll('.nav a');
-  navLinks.forEach(link => {
-    link.classList.remove('active');
-  });
-  
-  // 设置当前导航项为激活状态
-  const activeLink = document.querySelector('[href="#' + sectionId + '"]');
-  if (activeLink) {
-    activeLink.classList.add('active');
-  }
-  
-  // 根据选中的区域重新加载对应的数据
-  switch (sectionId) {
-    case 'hot-cold':
-      loadHotColdAnalysis();
-      break;
-    case 'parity':
-      loadParityAnalysis();
-      break;
-    case 'size':
-      loadSizeAnalysis();
-      break;
-    case 'range':
-      loadRangeAnalysis();
-      break;
-    case 'missing':
-      loadMissingAnalysis();
-      break;
-    case 'recommendation':
-      loadRecommendation();
-      break;
-  }
-}
+### 5.1 导航系统
 
-// 加载分析数据
-async function loadHotColdAnalysis() {
-  try {
-    const period = document.getElementById('period-select').value;
-    const response = await fetch(`/api/analysis/hot-cold?periods=${period}`);
-    const data = await response.json();
-    
-    if (data.success) {
-      // 更新热冷分析表格
-      updateHotColdTable('red-hot-cold-table', data.redFrequency);
-      updateHotColdTable('blue-hot-cold-table', data.blueFrequency);
-      
-      // 更新统计数据
-      const hotRedCount = data.redFrequency.filter(item => item.status === 'hot').length;
-      const coldRedCount = data.redFrequency.filter(item => item.status === 'cold').length;
-      const hotBlueCount = data.blueFrequency.filter(item => item.status === 'hot').length;
-      const coldBlueCount = data.blueFrequency.filter(item => item.status === 'cold').length;
-      
-      document.getElementById('hot-red-count').textContent = hotRedCount;
-      document.getElementById('cold-red-count').textContent = coldRedCount;
-      document.getElementById('hot-blue-count').textContent = hotBlueCount;
-      document.getElementById('cold-blue-count').textContent = coldBlueCount;
-    }
-  } catch (error) {
-    console.error('加载热冷分析失败:', error);
-    showMessage('加载热冷分析失败', 'error');
-  }
+```javascript
+// 设置导航
+function setupNavigation() {
+    const navLinks = document.querySelectorAll('.nav a');
+    navLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // 移除所有active类
+            navLinks.forEach(l => l.classList.remove('active'));
+            // 添加active类到当前链接
+            this.classList.add('active');
+            
+            // 滚动到目标区域
+            const targetId = this.getAttribute('href');
+            const targetElement = document.querySelector(targetId);
+            if (targetElement) {
+                targetElement.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    });
 }
 ```
+
+### 5.2 分析数据加载
+
+```javascript
+// 页面加载完成后初始化
+function loadAllAnalysisData() {
+    // 并行加载所有分析数据
+    Promise.all([
+        loadHotColdAnalysis(),
+        loadParityAnalysis(),
+        loadSizeAnalysis(),
+        loadRangeAnalysis(),
+        loadMissingAnalysis(),
+        loadRecommendation()
+    ]).then(() => {
+        showMessage('分析数据加载完成！', 'success');
+    }).catch(error => {
+        showMessage('加载分析数据失败: ' + error.message, 'error');
+    });
+}
+```
+
+### 5.3 推荐号码展示
+
+```javascript
+// 显示推荐号码
+function displayRecommendations(combinations) {
+    const container = document.getElementById('recommended-combinations');
+    container.innerHTML = '';
+    
+    combinations.forEach((combination, index) => {
+        const comboDiv = document.createElement('div');
+        comboDiv.style.margin = '20px 0';
+        comboDiv.style.textAlign = 'center';
+        
+        const title = document.createElement('h4');
+        title.textContent = `推荐组合 ${index + 1}`;
+        comboDiv.appendChild(title);
+        
+        const numbersDiv = document.createElement('div');
+        numbersDiv.className = 'recommended-numbers';
+        
+        // 添加红球
+        combination.red.forEach(num => {
+            const ball = document.createElement('div');
+            ball.className = 'red-ball';
+            ball.textContent = num;
+            numbersDiv.appendChild(ball);
+        });
+        
+        // 添加蓝球
+        const blueBall = document.createElement('div');
+        blueBall.className = 'blue-ball';
+        blueBall.textContent = combination.blue;
+        numbersDiv.appendChild(blueBall);
+        
+        comboDiv.appendChild(numbersDiv);
+        container.appendChild(comboDiv);
+    });
+}
+```
+
+### 5.4 消息提示系统
+
+```javascript
+// 显示消息
+function showMessage(message, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.textContent = message;
+    messageDiv.className = `message ${type}`;
+    messageDiv.style.display = 'block';
+    messageDiv.style.padding = '15px';
+    messageDiv.style.textAlign = 'center';
+    messageDiv.style.fontWeight = 'bold';
+    messageDiv.style.borderRadius = '4px';
+    messageDiv.style.margin = '20px';
+    
+    if (type === 'success') {
+        messageDiv.style.backgroundColor = '#f6ffed';
+        messageDiv.style.border = '1px solid #b7eb8f';
+        messageDiv.style.color = '#52c41a';
+    } else if (type === 'error') {
+        messageDiv.style.backgroundColor = '#fff1f0';
+        messageDiv.style.border = '1px solid #ffccc7';
+        messageDiv.style.color = '#f5222d';
+    }
+    
+    // 3秒后自动隐藏
+    setTimeout(() => {
+        messageDiv.style.display = 'none';
+    }, 3000);
+}
 
 ## 6. 部署与运维
 
@@ -803,6 +889,6 @@ type = "schedule"
 
 ---
 
-**文档版本**: 1.0.0
-**最后更新**: 2024年5月
+**文档版本**: 1.1.0
+**最后更新**: 2024年9月
 **作者**: 双色球选号系统开发团队

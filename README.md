@@ -35,13 +35,15 @@ shuangse-lottery/
 │   ├── lottery.js         # 双色球核心功能
 │   └── database.js        # 数据库操作
 ├── migrations/            # 数据库迁移文件
-│   └── complete_schema.sql # 完整数据库结构
+│   ├── complete_schema.sql # 完整数据库结构
+│   └── shuangse.xlsx      # 历史数据Excel文件
 ├── wrangler.toml          # Cloudflare Workers配置
 ├── wrangler-simple.toml   # 简化版配置文件
 ├── package.json           # 项目依赖
 ├── package-lock.json      # 依赖锁定文件
 ├── DEPLOYMENT.md          # 部署指南
-└── README.md              # 项目说明
+├── README.md              # 项目说明
+└── SYSTEM_OVERVIEW.md     # 系统技术文档
 ```
 
 ## 快速开始
@@ -61,7 +63,11 @@ shuangse-lottery/
 
 2. 更新`wrangler.toml`文件中的`database_id`为实际的数据库ID
 
+### 3. 安装依赖
 
+```bash
+npm install
+```
 
 ### 4. 本地开发
 
@@ -139,12 +145,6 @@ npm run deploy
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 打开Pull Request
 
-## 许可证
-
-MIT License - 详见LICENSE文件
-3. 检查该组合是否在历史开奖数据中存在
-4. 如果存在则重新生成，最多尝试1000次
-
 ### 历史数据爬取
 
 系统会自动从官方网站爬取历史开奖数据，包括:
@@ -162,9 +162,9 @@ MIT License - 详见LICENSE文件
 3. 实际部署时需要替换`wrangler.toml`中的配置为真实值
 4. 生产环境建议启用HTTPS
 
-## License
+## 许可证
 
-MIT License
+MIT License - 详见LICENSE文件
 
 ## 贡献
 
