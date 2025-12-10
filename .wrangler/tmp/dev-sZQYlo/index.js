@@ -1,5 +1,4 @@
 var __create = Object.create;
-var __freeze = Object.freeze;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -39,7 +38,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
-var __template = (cooked, raw) => __freeze(__defProp(cooked, "raw", { value: __freeze(raw || cooked.slice()) }));
 
 // .wrangler/tmp/bundle-rZ7Kup/checked-fetch.js
 function checkURL(request, init) {
@@ -29770,7 +29768,7 @@ function mappa(data, cb) {
 }
 __name(mappa, "mappa");
 function parse_iwa_file(buf) {
-  var _a2;
+  var _a;
   var out = [], ptr = [0];
   while (ptr[0] < buf.length) {
     var len = parse_varint49(buf, ptr);
@@ -29789,7 +29787,7 @@ function parse_iwa_file(buf) {
       });
       ptr[0] += fl;
     });
-    if ((_a2 = ai[3]) == null ? void 0 : _a2[0])
+    if ((_a = ai[3]) == null ? void 0 : _a[0])
       res.merge = varint_to_i32(ai[3][0].data) >>> 0 > 0;
     out.push(res);
   }
@@ -30054,11 +30052,11 @@ function parse_TST_TableDataList(M, root) {
 }
 __name(parse_TST_TableDataList, "parse_TST_TableDataList");
 function parse_TST_TileRowInfo(u8, type) {
-  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
   var pb = parse_shallow(u8);
   var R = varint_to_i32(pb[1][0].data) >>> 0;
   var cnt = varint_to_i32(pb[2][0].data) >>> 0;
-  var wide_offsets = ((_b = (_a2 = pb[8]) == null ? void 0 : _a2[0]) == null ? void 0 : _b.data) && varint_to_i32(pb[8][0].data) > 0 || false;
+  var wide_offsets = ((_b = (_a = pb[8]) == null ? void 0 : _a[0]) == null ? void 0 : _b.data) && varint_to_i32(pb[8][0].data) > 0 || false;
   var used_storage_u8, used_storage;
   if (((_d = (_c = pb[7]) == null ? void 0 : _c[0]) == null ? void 0 : _d.data) && type != 0) {
     used_storage_u8 = (_f = (_e = pb[7]) == null ? void 0 : _e[0]) == null ? void 0 : _f.data;
@@ -30087,9 +30085,9 @@ function parse_TST_TileRowInfo(u8, type) {
 }
 __name(parse_TST_TileRowInfo, "parse_TST_TileRowInfo");
 function parse_TST_Tile(M, root) {
-  var _a2;
+  var _a;
   var pb = parse_shallow(root.data);
-  var storage = ((_a2 = pb == null ? void 0 : pb[7]) == null ? void 0 : _a2[0]) ? varint_to_i32(pb[7][0].data) >>> 0 > 0 ? 1 : 0 : -1;
+  var storage = ((_a = pb == null ? void 0 : pb[7]) == null ? void 0 : _a[0]) ? varint_to_i32(pb[7][0].data) >>> 0 > 0 ? 1 : 0 : -1;
   var ri = mappa(pb[5], function(u8) {
     return parse_TST_TileRowInfo(u8, storage);
   });
@@ -30109,7 +30107,7 @@ function parse_TST_Tile(M, root) {
 }
 __name(parse_TST_Tile, "parse_TST_Tile");
 function parse_TST_TableModelArchive(M, root, ws) {
-  var _a2;
+  var _a;
   var pb = parse_shallow(root.data);
   var range = { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
   range.e.r = (varint_to_i32(pb[6][0].data) >>> 0) - 1;
@@ -30121,7 +30119,7 @@ function parse_TST_TableModelArchive(M, root, ws) {
   ws["!ref"] = encode_range(range);
   var store = parse_shallow(pb[4][0].data);
   var sst = parse_TST_TableDataList(M, M[parse_TSP_Reference(store[4][0].data)][0]);
-  var rsst = ((_a2 = store[17]) == null ? void 0 : _a2[0]) ? parse_TST_TableDataList(M, M[parse_TSP_Reference(store[17][0].data)][0]) : [];
+  var rsst = ((_a = store[17]) == null ? void 0 : _a[0]) ? parse_TST_TableDataList(M, M[parse_TSP_Reference(store[17][0].data)][0]) : [];
   var tile = parse_shallow(store[3][0].data);
   var _R = 0;
   tile[1].forEach(function(t) {
@@ -30155,10 +30153,10 @@ function parse_TST_TableInfoArchive(M, root) {
 }
 __name(parse_TST_TableInfoArchive, "parse_TST_TableInfoArchive");
 function parse_TN_SheetArchive(M, root) {
-  var _a2;
+  var _a;
   var pb = parse_shallow(root.data);
   var out = {
-    name: ((_a2 = pb[1]) == null ? void 0 : _a2[0]) ? u8str(pb[1][0].data) : "",
+    name: ((_a = pb[1]) == null ? void 0 : _a[0]) ? u8str(pb[1][0].data) : "",
     sheets: []
   };
   var shapeoffs = mappa(pb[2], parse_TSP_Reference);
@@ -30193,7 +30191,7 @@ function parse_TN_DocumentArchive(M, root) {
 }
 __name(parse_TN_DocumentArchive, "parse_TN_DocumentArchive");
 function parse_numbers_iwa(cfb) {
-  var _a2, _b, _c, _d;
+  var _a, _b, _c, _d;
   var M = {}, indices = [];
   cfb.FullPaths.forEach(function(p) {
     if (p.match(/\.iwpv2/))
@@ -30221,7 +30219,7 @@ function parse_numbers_iwa(cfb) {
   });
   if (!indices.length)
     throw new Error("File has no messages");
-  var docroot = ((_d = (_c = (_b = (_a2 = M == null ? void 0 : M[1]) == null ? void 0 : _a2[0]) == null ? void 0 : _b.meta) == null ? void 0 : _c[1]) == null ? void 0 : _d[0].data) && varint_to_i32(M[1][0].meta[1][0].data) == 1 && M[1][0];
+  var docroot = ((_d = (_c = (_b = (_a = M == null ? void 0 : M[1]) == null ? void 0 : _a[0]) == null ? void 0 : _b.meta) == null ? void 0 : _c[1]) == null ? void 0 : _d[0].data) && varint_to_i32(M[1][0].meta[1][0].data) == 1 && M[1][0];
   if (!docroot)
     indices.forEach(function(idx) {
       M[idx].forEach(function(iwam) {
@@ -33052,7 +33050,6 @@ function getLoginHTML() {
 </html>`;
 }
 __name(getLoginHTML, "getLoginHTML");
-var _a;
 function getAnalysisHTML() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -33701,7 +33698,7 @@ function getAnalysisHTML() {
             document.querySelectorAll('.nav a').forEach(link => {
                 link.classList.remove('active');
             });
-            document.querySelector(`[href = "#${sectionId}"](_a || (_a = __template([`).classList.add('active');
+            document.querySelector('[href="#' + sectionId + '"]').classList.add('active');
         }
         
         async function loadHotColdAnalysis() {
@@ -34027,7 +34024,7 @@ function getAnalysisHTML() {
         });
     <\/script>
 </body>
-</html>`])));
+</html>`;
 }
 __name(getAnalysisHTML, "getAnalysisHTML");
 function getAppHTML() {

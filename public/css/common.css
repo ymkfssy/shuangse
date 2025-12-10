@@ -1,0 +1,143 @@
+/* 公共基础样式 */
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f0f2f5;
+    margin: 0;
+    padding: 0;
+}
+
+.header {
+    background-color: #1890ff;
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 0 20px;
+}
+
+.card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+    margin-bottom: 20px;
+}
+
+/* 按钮样式 */
+.btn {
+    padding: 12px 24px;
+    background-color: #1890ff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin: 0 10px;
+}
+
+.btn:hover {
+    background-color: #40a9ff;
+}
+
+.btn-primary {
+    background-color: #1890ff;
+}
+
+.btn-primary:hover {
+    background-color: #40a9ff;
+}
+
+.btn-success {
+    background-color: #52c41a;
+}
+
+.btn-success:hover {
+    background-color: #73d13d;
+}
+
+.btn-danger {
+    background-color: #ff4d4f;
+}
+
+.btn-danger:hover {
+    background-color: #ff7875;
+}
+
+.btn-secondary {
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.btn-secondary:hover {
+    background-color: #e8e8e8;
+}
+
+.btn-warning {
+    background-color: #faad14;
+}
+
+.btn-warning:hover {
+    background-color: #ffc53d;
+}
+
+/* 导航链接样式 */
+.nav-links {
+    display: flex;
+    gap: 10px;
+    margin: 0 20px;
+}
+
+.nav-link {
+    padding: 10px 20px;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.nav-link:hover,
+.nav-link.active {
+    background-color: rgba(255, 255, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 响应式基础样式 */
+@media (max-width: 768px) {
+    .header {
+        padding: 15px;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .header h1 {
+        font-size: 20px;
+        text-align: center;
+    }
+    
+    .container {
+        padding: 0 10px;
+        margin: 10px auto;
+    }
+    
+    .card {
+        padding: 20px 15px;
+    }
+}
