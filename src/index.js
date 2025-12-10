@@ -9,7 +9,7 @@ async function handleRequest(request, env, ctx) {
   const pathname = url.pathname;
 
   // 检查是否需要身份验证
-  const requiresAuth = ['/app', '/api/generate', '/api/history', '/api/crawl'].includes(pathname);
+  const requiresAuth = ['/app', '/analysis', '/api/generate', '/api/history', '/api/crawl', '/api/analysis'].includes(pathname);
   if (requiresAuth && !await isAuthenticated(request, env)) {
     return new Response(JSON.stringify({ error: '请先登录' }), { 
       status: 401, 
@@ -71,6 +71,12 @@ async function handleRequest(request, env, ctx) {
     
     if (pathname === '/login.html' || pathname === '/login' || pathname === '/') {
       return new Response(getLoginHTML(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
+    }
+    
+    if (pathname === '/analysis.html' || pathname === '/analysis') {
+      return new Response(getAnalysisHTML(), {
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
       });
     }
@@ -241,6 +247,983 @@ function getLoginHTML() {
                 showMessage('注册失败，请稍后重试', 'error');
             }
         }
+    </script>
+</body>
+</html>`;
+}
+
+function getAnalysisHTML() {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双色球号码分析系统</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+        }
+        .header {
+            background-color: #1890ff;
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+        .nav {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 0;
+            margin-bottom: 20px;
+        }
+        .nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .nav li {
+            margin: 0;
+        }
+        .nav a {
+            display: block;
+            padding: 15px 20px;
+            text-decoration: none;
+            color: #333;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .nav a:hover,
+        .nav a.active {
+            color: #1890ff;
+            border-bottom-color: #1890ff;
+            background-color: #f0f5ff;
+        }
+        .btn {
+            padding: 12px 24px;
+            background-color: #1890ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin: 0 10px;
+        }
+        .btn:hover {
+            background-color: #40a9ff;
+        }
+        .btn-success {
+            background-color: #52c41a;
+        }
+        .btn-success:hover {
+            background-color: #73d13d;
+        }
+        .btn-danger {
+            background-color: #ff4d4f;
+        }
+        .btn-danger:hover {
+            background-color: #ff7875;
+        }
+        .btn-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .analysis-section {
+            margin-bottom: 30px;
+        }
+        .analysis-section h2 {
+            color: #333;
+            border-bottom: 2px solid #e8e8e8;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .analysis-section h3 {
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background-color: #fafafa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #1890ff;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 10px;
+        }
+        .frequency-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .frequency-table th,
+        .frequency-table td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #e8e8e8;
+        }
+        .frequency-table th {
+            background-color: #f0f5ff;
+            font-weight: bold;
+        }
+        .hot-number {
+            background-color: #fff2f0;
+            color: #ff4d4f;
+            font-weight: bold;
+        }
+        .cold-number {
+            background-color: #f0f5ff;
+            color: #1890ff;
+            font-weight: bold;
+        }
+        .recommended-numbers {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .red-ball, .blue-ball {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .red-ball {
+            background-color: #ff4d4f;
+        }
+        .blue-ball {
+            background-color: #1890ff;
+        }
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            margin: 20px 0;
+            background-color: #fafafa;
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .distribution-chart {
+            display: flex;
+            justify-content: space-around;
+            align-items: end;
+            height: 100%;
+        }
+        .chart-bar {
+            flex: 1;
+            margin: 0 5px;
+            background-color: #1890ff;
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            transition: all 0.3s;
+        }
+        .chart-bar:hover {
+            background-color: #40a9ff;
+        }
+        .chart-bar-label {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: #666;
+            white-space: nowrap;
+        }
+        .chart-bar-value {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+        }
+        .message {
+            text-align: center;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .message.success {
+            background-color: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+        }
+        .message.error {
+            background-color: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #ff4d4f;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        .filter-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .filter-group label {
+            color: #666;
+            font-weight: bold;
+        }
+        .filter-group select {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+            .nav ul {
+                flex-direction: column;
+            }
+            .nav a {
+                border-bottom: none;
+                border-right: 3px solid transparent;
+            }
+            .nav a:hover,
+            .nav a.active {
+                border-bottom: none;
+                border-right-color: #1890ff;
+            }
+            .container {
+                padding: 0 10px;
+            }
+            .card {
+                padding: 20px;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .frequency-table {
+                font-size: 12px;
+            }
+            .frequency-table th,
+            .frequency-table td {
+                padding: 8px;
+            }
+            .chart-container {
+                height: 300px;
+                padding: 10px;
+            }
+        }
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 20px;
+            }
+            .btn {
+                padding: 10px 16px;
+                font-size: 14px;
+                margin: 0 5px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .red-ball, .blue-ball {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+            .chart-container {
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>双色球号码分析系统</h1>
+        <div>
+            <button class="btn" onclick="window.location.href='/app.html'">返回主界面</button>
+            <button class="btn btn-danger" onclick="handleLogout()">退出登录</button>
+        </div>
+    </div>
+    
+    <div class="nav">
+        <ul>
+            <li><a href="#hot-cold" class="active" onclick="showSection('hot-cold')">冷热分析</a></li>
+            <li><a href="#parity" onclick="showSection('parity')">奇偶分析</a></li>
+            <li><a href="#size" onclick="showSection('size')">大小分析</a></li>
+            <li><a href="#range" onclick="showSection('range')">区间分析</a></li>
+            <li><a href="#missing" onclick="showSection('missing')">遗漏分析</a></li>
+            <li><a href="#recommendation" onclick="showSection('recommendation')">号码推荐</a></li>
+        </ul>
+    </div>
+    
+    <div class="container">
+        <div class="filter-container">
+            <div class="filter-group">
+                <label for="period-select">分析期数：</label>
+                <select id="period-select">
+                    <option value="20">最近20期</option>
+                    <option value="50" selected>最近50期</option>
+                    <option value="100">最近100期</option>
+                    <option value="200">最近200期</option>
+                    <option value="all">全部历史</option>
+                </select>
+            </div>
+            <button class="btn btn-success" onclick="loadAllAnalysis()">重新分析</button>
+        </div>
+        
+        <div id="hot-cold" class="analysis-section">
+            <h2>冷热分析</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="hot-red-count">0</div>
+                    <div class="stat-label">热门红球</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="cold-red-count">0</div>
+                    <div class="stat-label">冷门红球</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="hot-blue-count">0</div>
+                    <div class="stat-label">热门蓝球</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="cold-blue-count">0</div>
+                    <div class="stat-label">冷门蓝球</div>
+                </div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>红球冷热频率</h3>
+                <table class="frequency-table">
+                    <thead>
+                        <tr>
+                            <th>号码</th>
+                            <th>出现次数</th>
+                            <th>冷热状态</th>
+                            <th>最后出现期数</th>
+                        </tr>
+                    </thead>
+                    <tbody id="red-hot-cold-table">
+                        <tr><td colspan="4" class="loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>蓝球冷热频率</h3>
+                <table class="frequency-table">
+                    <thead>
+                        <tr>
+                            <th>号码</th>
+                            <th>出现次数</th>
+                            <th>冷热状态</th>
+                            <th>最后出现期数</th>
+                        </tr>
+                    </thead>
+                    <tbody id="blue-hot-cold-table">
+                        <tr><td colspan="4" class="loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="parity" class="analysis-section" style="display: none;">
+            <h2>奇偶分析</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="parity-red-even">0</div>
+                    <div class="stat-label">红球偶数比例</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="parity-red-odd">0</div>
+                    <div class="stat-label">红球奇数比例</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="parity-blue-even">0</div>
+                    <div class="stat-label">蓝球偶数比例</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="parity-blue-odd">0</div>
+                    <div class="stat-label">蓝球奇数比例</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3 style="text-align: center; margin-bottom: 20px;">红球奇偶分布</h3>
+                <div id="red-parity-chart" class="distribution-chart">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3 style="text-align: center; margin-bottom: 20px;">蓝球奇偶分布</h3>
+                <div id="blue-parity-chart" class="distribution-chart">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="size" class="analysis-section" style="display: none;">
+            <h2>大小分析</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="size-red-big">0</div>
+                    <div class="stat-label">红球大号比例</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="size-red-small">0</div>
+                    <div class="stat-label">红球小号比例</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="size-blue-big">0</div>
+                    <div class="stat-label">蓝球大号比例</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="size-blue-small">0</div>
+                    <div class="stat-label">蓝球小号比例</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3 style="text-align: center; margin-bottom: 20px;">红球大小分布</h3>
+                <div id="red-size-chart" class="distribution-chart">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3 style="text-align: center; margin-bottom: 20px;">蓝球大小分布</h3>
+                <div id="blue-size-chart" class="distribution-chart">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="range" class="analysis-section" style="display: none;">
+            <h2>区间分析</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="range-red-1">0</div>
+                    <div class="stat-label">红球区间1-11</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="range-red-2">0</div>
+                    <div class="stat-label">红球区间12-22</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="range-red-3">0</div>
+                    <div class="stat-label">红球区间23-33</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="range-blue-1">0</div>
+                    <div class="stat-label">蓝球区间1-8</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="range-blue-2">0</div>
+                    <div class="stat-label">蓝球区间9-16</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3 style="text-align: center; margin-bottom: 20px;">红球区间分布</h3>
+                <div id="red-range-chart" class="distribution-chart">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3 style="text-align: center; margin-bottom: 20px;">蓝球区间分布</h3>
+                <div id="blue-range-chart" class="distribution-chart">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="missing" class="analysis-section" style="display: none;">
+            <h2>遗漏分析</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="missing-red-max">0</div>
+                    <div class="stat-label">红球最大遗漏</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="missing-red-average">0</div>
+                    <div class="stat-label">红球平均遗漏</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="missing-blue-max">0</div>
+                    <div class="stat-label">蓝球最大遗漏</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="missing-blue-average">0</div>
+                    <div class="stat-label">蓝球平均遗漏</div>
+                </div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>红球遗漏数据</h3>
+                <table class="frequency-table">
+                    <thead>
+                        <tr>
+                            <th>号码</th>
+                            <th>当前遗漏</th>
+                            <th>历史最大遗漏</th>
+                            <th>上次遗漏</th>
+                        </tr>
+                    </thead>
+                    <tbody id="red-missing-table">
+                        <tr><td colspan="4" class="loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>蓝球遗漏数据</h3>
+                <table class="frequency-table">
+                    <thead>
+                        <tr>
+                            <th>号码</th>
+                            <th>当前遗漏</th>
+                            <th>历史最大遗漏</th>
+                            <th>上次遗漏</th>
+                        </tr>
+                    </thead>
+                    <tbody id="blue-missing-table">
+                        <tr><td colspan="4" class="loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="recommendation" class="analysis-section" style="display: none;">
+            <h2>号码推荐</h2>
+            <div class="analysis-section">
+                <h3>根据分析推荐的号码</h3>
+                <div class="recommended-numbers" id="recommended-numbers">
+                    <p class="loading">加载中...</p>
+                </div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>推荐理由</h3>
+                <div class="card">
+                    <ul id="recommendation-reason">
+                        <li class="loading">加载中...</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="btn-container">
+                <button class="btn btn-success" onclick="generateFromRecommendation()">根据推荐生成号码</button>
+                <button class="btn" onclick="window.location.href='/app.html'">返回主界面</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="message" class="message" style="display: none;"></div>
+    
+    <script>
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = "message " + type;
+            messageDiv.style.display = 'block';
+            setTimeout(() => { messageDiv.style.display = 'none'; }, 3000);
+        }
+        
+        function showSection(sectionId) {
+            // 隐藏所有分析区域
+            document.querySelectorAll('.analysis-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // 显示选中的分析区域
+            document.getElementById(sectionId).style.display = 'block';
+            
+            // 更新导航栏激活状态
+            document.querySelectorAll('.nav a').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelector(`[href="#${sectionId}"]`).classList.add('active');
+        }
+        
+        async function loadHotColdAnalysis() {
+            try {
+                const periods = document.getElementById('period-select').value;
+                const response = await fetch("/api/analysis/hot-cold?periods=" + periods);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // 更新统计数据
+                    document.getElementById('hot-red-count').textContent = result.red.hot.length;
+                    document.getElementById('cold-red-count').textContent = result.red.cold.length;
+                    document.getElementById('hot-blue-count').textContent = result.blue.hot.length;
+                    document.getElementById('cold-blue-count').textContent = result.blue.cold.length;
+                    
+                    // 更新红球冷热表格
+                    updateHotColdTable('red-hot-cold-table', result.red.data);
+                    
+                    // 更新蓝球冷热表格
+                    updateHotColdTable('blue-hot-cold-table', result.blue.data);
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('加载冷热分析失败:', error);
+                showMessage('加载冷热分析失败，请稍后重试', 'error');
+            }
+        }
+        
+        function updateHotColdTable(tableId, data) {
+            const tbody = document.getElementById(tableId);
+            tbody.innerHTML = '';
+            
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = item.status === 'hot' ? 'hot-number' : item.status === 'cold' ? 'cold-number' : '';
+                
+                let statusText;
+                if (item.status === 'hot') {
+                    statusText = '热门';
+                } else if (item.status === 'cold') {
+                    statusText = '冷门';
+                } else {
+                    statusText = '正常';
+                }
+                
+                row.innerHTML = "<td>" + item.number + "</td><td>" + item.count + "</td><td>" + statusText + "</td><td>" + item.lastDraw + "</td>";
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        async function loadParityAnalysis() {
+            try {
+                const periods = document.getElementById('period-select').value;
+                const response = await fetch("/api/analysis/parity?periods=" + periods);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // 更新统计数据
+                    document.getElementById('parity-red-even').textContent = result.red.evenRatio.toFixed(1) + '%';
+                    document.getElementById('parity-red-odd').textContent = result.red.oddRatio.toFixed(1) + '%';
+                    document.getElementById('parity-blue-even').textContent = result.blue.evenRatio.toFixed(1) + '%';
+                    document.getElementById('parity-blue-odd').textContent = result.blue.oddRatio.toFixed(1) + '%';
+                    
+                    // 更新红球奇偶图表
+                    updateDistributionChart('red-parity-chart', [
+                        { label: '偶数', value: result.red.evenCount, color: '#1890ff' },
+                        { label: '奇数', value: result.red.oddCount, color: '#52c41a' }
+                    ]);
+                    
+                    // 更新蓝球奇偶图表
+                    updateDistributionChart('blue-parity-chart', [
+                        { label: '偶数', value: result.blue.evenCount, color: '#1890ff' },
+                        { label: '奇数', value: result.blue.oddCount, color: '#52c41a' }
+                    ]);
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('加载奇偶分析失败:', error);
+                showMessage('加载奇偶分析失败，请稍后重试', 'error');
+            }
+        }
+        
+        async function loadSizeAnalysis() {
+            try {
+                const periods = document.getElementById('period-select').value;
+                const response = await fetch("/api/analysis/size?periods=" + periods);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // 更新统计数据
+                    document.getElementById('size-red-big').textContent = result.red.bigRatio.toFixed(1) + '%';
+                    document.getElementById('size-red-small').textContent = result.red.smallRatio.toFixed(1) + '%';
+                    document.getElementById('size-blue-big').textContent = result.blue.bigRatio.toFixed(1) + '%';
+                    document.getElementById('size-blue-small').textContent = result.blue.smallRatio.toFixed(1) + '%';
+                    
+                    // 更新红球大小图表
+                    updateDistributionChart('red-size-chart', [
+                        { label: '大号(18-33)', value: result.red.bigCount, color: '#1890ff' },
+                        { label: '小号(1-17)', value: result.red.smallCount, color: '#52c41a' }
+                    ]);
+                    
+                    // 更新蓝球大小图表
+                    updateDistributionChart('blue-size-chart', [
+                        { label: '大号(9-16)', value: result.blue.bigCount, color: '#1890ff' },
+                        { label: '小号(1-8)', value: result.blue.smallCount, color: '#52c41a' }
+                    ]);
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('加载大小分析失败:', error);
+                showMessage('加载大小分析失败，请稍后重试', 'error');
+            }
+        }
+        
+        async function loadRangeAnalysis() {
+            try {
+                const periods = document.getElementById('period-select').value;
+                const response = await fetch("/api/analysis/range?periods=" + periods);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // 更新统计数据
+                    document.getElementById('range-red-1').textContent = result.red.range1Ratio.toFixed(1) + '%';
+                    document.getElementById('range-red-2').textContent = result.red.range2Ratio.toFixed(1) + '%';
+                      document.getElementById('range-red-3').textContent = result.red.range3Ratio.toFixed(1) + '%';
+                      document.getElementById('range-blue-1').textContent = result.blue.range1Ratio.toFixed(1) + '%';
+                      document.getElementById('range-blue-2').textContent = result.blue.range2Ratio.toFixed(1) + '%';
+                    
+                    // 更新红球区间图表
+                    updateDistributionChart('red-range-chart', [
+                        { label: '1-11', value: result.red.range1Count, color: '#1890ff' },
+                        { label: '12-22', value: result.red.range2Count, color: '#52c41a' },
+                        { label: '23-33', value: result.red.range3Count, color: '#faad14' }
+                    ]);
+                    
+                    // 更新蓝球区间图表
+                    updateDistributionChart('blue-range-chart', [
+                        { label: '1-8', value: result.blue.range1Count, color: '#1890ff' },
+                        { label: '9-16', value: result.blue.range2Count, color: '#52c41a' }
+                    ]);
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('加载区间分析失败:', error);
+                showMessage('加载区间分析失败，请稍后重试', 'error');
+            }
+        }
+        
+        async function loadMissingAnalysis() {
+            try {
+                const periods = document.getElementById('period-select').value;
+                const response = await fetch("/api/analysis/missing?periods=" + periods);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // 更新统计数据
+                    document.getElementById('missing-red-max').textContent = result.red.maxMissing;
+                    document.getElementById('missing-red-average').textContent = result.red.averageMissing.toFixed(1);
+                    document.getElementById('missing-blue-max').textContent = result.blue.maxMissing;
+                    document.getElementById('missing-blue-average').textContent = result.blue.averageMissing.toFixed(1);
+                    
+                    // 更新红球遗漏表格
+                    updateMissingTable('red-missing-table', result.red.data);
+                    
+                    // 更新蓝球遗漏表格
+                    updateMissingTable('blue-missing-table', result.blue.data);
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('加载遗漏分析失败:', error);
+                showMessage('加载遗漏分析失败，请稍后重试', 'error');
+            }
+        }
+        
+        function updateMissingTable(tableId, data) {
+            const tbody = document.getElementById(tableId);
+            tbody.innerHTML = '';
+            
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = 
+                    '<td>' + item.number + '</td>' +
+                    '<td>' + item.currentMissing + '</td>' +
+                    '<td>' + item.maxMissing + '</td>' +
+                    '<td>' + item.lastMissing + '</td>';
+                tbody.appendChild(row);
+            });
+        }
+        
+        async function loadRecommendation() {
+            try {
+                const response = await fetch('/api/analysis/recommendation');
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // 更新推荐号码
+                    const container = document.getElementById('recommended-numbers');
+                    container.innerHTML = '';
+                    
+                    result.recommendedNumbers.red.forEach(num => {
+                        const ball = document.createElement('div');
+                        ball.className = 'red-ball';
+                        ball.textContent = num;
+                        container.appendChild(ball);
+                    });
+                    
+                    const blueBall = document.createElement('div');
+                    blueBall.className = 'blue-ball';
+                    blueBall.textContent = result.recommendedNumbers.blue;
+                    container.appendChild(blueBall);
+                    
+                    // 更新推荐理由
+                    const reasonList = document.getElementById('recommendation-reason');
+                    reasonList.innerHTML = '';
+                    
+                    result.reason.forEach(reason => {
+                        const li = document.createElement('li');
+                        li.textContent = reason;
+                        reasonList.appendChild(li);
+                    });
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('加载推荐号码失败:', error);
+                showMessage('加载推荐号码失败，请稍后重试', 'error');
+            }
+        }
+        
+        function updateDistributionChart(chartId, data) {
+            const chartContainer = document.getElementById(chartId);
+            chartContainer.innerHTML = '';
+            
+            const maxValue = Math.max(...data.map(item => item.value));
+            
+            data.forEach(item => {
+                const bar = document.createElement('div');
+                bar.className = 'chart-bar';
+                bar.style.height = ((item.value / maxValue) * 100) + '%';
+                bar.style.backgroundColor = item.color;
+                
+                const valueLabel = document.createElement('div');
+                valueLabel.className = 'chart-bar-value';
+                valueLabel.textContent = item.value;
+                
+                const barLabel = document.createElement('div');
+                barLabel.className = 'chart-bar-label';
+                barLabel.textContent = item.label;
+                
+                bar.appendChild(valueLabel);
+                bar.appendChild(barLabel);
+                chartContainer.appendChild(bar);
+            });
+        }
+        
+        async function loadAllAnalysis() {
+            showMessage('正在加载分析数据...', 'success');
+            
+            // 并行加载所有分析数据
+            await Promise.all([
+                loadHotColdAnalysis(),
+                loadParityAnalysis(),
+                loadSizeAnalysis(),
+                loadRangeAnalysis(),
+                loadMissingAnalysis(),
+                loadRecommendation()
+            ]);
+            
+            showMessage('分析数据加载完成！', 'success');
+        }
+        
+        async function generateFromRecommendation() {
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ count: 5, useRecommendation: true })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // 保存推荐生成的号码到本地存储，以便在主界面显示
+                    localStorage.setItem('generatedNumbers', JSON.stringify(result.numbers));
+                    localStorage.setItem('fromRecommendation', 'true');
+                    
+                    // 跳转到主界面
+                    window.location.href = '/app.html';
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('生成号码失败:', error);
+                showMessage('生成号码失败，请稍后重试', 'error');
+            }
+        }
+        
+        async function handleLogout() {
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    window.location.href = '/login.html';
+                } else {
+                    showMessage('退出登录失败，请稍后重试', 'error');
+                }
+            } catch (error) {
+                showMessage('退出登录失败，请稍后重试', 'error');
+            }
+        }
+        
+        // 页面加载完成后自动加载分析数据
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAllAnalysis();
+        });
     </script>
 </body>
 </html>`;
