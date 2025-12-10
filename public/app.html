@@ -507,6 +507,33 @@
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', async function() {
             try {
+                // 调试：确保导航元素显示
+                const navLinks = document.querySelector('.nav-links');
+                const navButtons = document.querySelector('.navigation-buttons');
+                
+                if (navLinks) {
+                    navLinks.style.display = 'flex';
+                    navLinks.style.visibility = 'visible';
+                    navLinks.style.opacity = '1';
+                    console.log('导航链接已显示:', navLinks);
+                }
+                
+                if (navButtons) {
+                    navButtons.style.display = 'flex';
+                    navButtons.style.visibility = 'visible';
+                    navButtons.style.opacity = '1';
+                    console.log('导航按钮已显示:', navButtons);
+                }
+                
+                // 确保号码分析链接存在
+                const analysisLinks = document.querySelectorAll('[href="/analysis.html"]');
+                analysisLinks.forEach((link, index) => {
+                    link.style.display = 'inline-block';
+                    link.style.visibility = 'visible';
+                    link.style.opacity = '1';
+                    console.log(`号码分析链接 ${index+1} 已显示:`, link);
+                });
+                
                 getHistoryNumbers();
                 // 加载总组合数
                 loadTotalCombinations();

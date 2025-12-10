@@ -595,8 +595,11 @@ function getAnalysisHTML() {
 <body>
     <div class="header">
         <h1>双色球号码分析系统</h1>
+        <div class="nav-links" style="display: flex; gap: 10px;">
+            <a href="/app.html" class="nav-link" style="color: white; background: rgba(255,255,255,0.2); padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: bold; border: 1px solid white; transition: all 0.3s;">选号</a>
+            <a href="/analysis.html" class="nav-link active" style="color: white; background: rgba(255,255,255,0.3); padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: bold; border: 1px solid white; transition: all 0.3s;">号码分析</a>
+        </div>
         <div>
-            <button class="btn" onclick="window.location.href='/app.html'">返回主界面</button>
             <button class="btn btn-danger" onclick="handleLogout()">退出登录</button>
         </div>
     </div>
@@ -1320,10 +1323,18 @@ function getAppHTML() {
 <body>
     <div class="header">
         <h1>双色球选号系统</h1>
+        <div class="nav-links" style="display: flex; gap: 10px;">
+            <a href="/app.html" class="nav-link active" style="color: white; background: rgba(255,255,255,0.3); padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: bold; border: 1px solid white; transition: all 0.3s;">选号</a>
+            <a href="/analysis.html" class="nav-link" style="color: white; background: rgba(255,255,255,0.2); padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: bold; border: 1px solid white; transition: all 0.3s;">号码分析</a>
+        </div>
         <button class="btn btn-danger" onclick="handleLogout()">退出登录</button>
     </div>
 
     <div class="container">
+        <div class="navigation-buttons" style="display: flex; justify-content: center; margin-bottom: 30px; gap: 20px;">
+            <button class="btn btn-primary" onclick="window.location.href='/app.html'" style="background: #1890ff; color: white; padding: 12px 30px; font-size: 18px; border: none; border-radius: 4px; cursor: pointer;">选号</button>
+            <button class="btn btn-warning" onclick="window.location.href='/analysis.html'" style="background: #faad14; color: white; padding: 12px 30px; font-size: 18px; border: none; border-radius: 4px; cursor: pointer;">号码分析</button>
+        </div>
         <div class="card">
             <div class="number-display">
                 <h2>双色球号码生成</h2>
